@@ -52,3 +52,7 @@ $html = $html.Replace('<title>E-Piano</title>', "<title>E-Piano v$version</title
 
 [IO.File]::WriteAllText($out, $html, $utf8)
 Write-Host ("Wrote {0} ({1:N0} KB)" -f $out, ((Get-Item $out).Length / 1KB))
+# GitHub Pages serves docs/ (https://blinkzer0.github.io/E-PianoVST): keep the live copy in step
+$pages = Join-Path $repo 'docs\index.html'
+[IO.File]::WriteAllText($pages, $html, $utf8)
+Write-Host "Wrote $pages (GitHub Pages)"

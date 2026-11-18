@@ -2,6 +2,10 @@ cmake_minimum_required(VERSION 3.22)
 
 project(EPianoVST VERSION 1.0.0 LANGUAGES C CXX)
 
+# Link the MSVC runtime statically so E-Piano.exe and E-Piano.vst3 run on PCs
+# without the Visual C++ Redistributable installed.
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -29,6 +33,7 @@ endif()
 juce_add_plugin(EPianoVST
     COMPANY_NAME            "EPiano"
     PRODUCT_NAME            "E-Piano"
+    ICON_BIG                "${CMAKE_CURRENT_SOURCE_DIR}/resources/icon.png"
     PLUGIN_MANUFACTURER_CODE Epno
     PLUGIN_CODE             Ep3o
     FORMATS                 VST3 Standalone

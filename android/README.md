@@ -44,7 +44,7 @@ Put `upload-key.jks` in `android/` (one has already been generated there; its pa
 
 1. You need a [Play Console](https://play.google.com/console) developer account (one-time $25 fee). **New personal accounts** must run a closed test with at least 12 testers for 14 days before they can publish to production.
 2. Create the app and upload `app-release.aab`. Enable **Play App Signing** (the default).
-3. Store listing: a 512×512 icon, a 1024×500 feature graphic and at least 2 phone screenshots. Fill in the content rating questionnaire. For *Data safety*, the app collects nothing: presets and samples stay on the device, and there's no network use.
+3. Store listing: everything is ready in [`play-store/`](play-store/listing.md): the 512×512 icon, the 1024×500 feature graphic, four phone screenshots, the listing text, and answers for content rating, target audience and *Data safety* (the app collects nothing and requests no permissions). The privacy policy is [`docs/privacy.html`](../docs/privacy.html), served at https://blinkzer0.github.io/E-PianoVST/privacy.html. Regenerate the graphics with `node android/play-store/render.mjs`.
 4. For every update, raise `versionCode` (and `versionName`) in `app/build.gradle`.
 
 **Application ID:** `com.blinkzer0.epiano`. It can never change once the app is published, so edit `applicationId` in `app/build.gradle` before the first upload if you want a different one.

@@ -1,11 +1,12 @@
 # E-Piano — v1.0
 
-E-Piano is a 3-oscillator, 88-voice polyphonic synthesizer. It comes in two builds that share the same sound engine, controls and presets:
+E-Piano is a 3-oscillator, 88-voice polyphonic synthesizer. It comes in three builds that share the same sound engine, controls and presets:
 
 | Build | Where | What it is |
 |---|---|---|
 | **VST3 plugin** | [`vst/`](vst/README.md) | C++ / JUCE 8 instrument plugin for any VST3 DAW, plus a Standalone app |
 | **Web build** | [`web/index.html`](https://blinkzer0.github.io/E-PianoVST) | One self-contained HTML file that runs in Chrome or Edge with Web MIDI |
+| **Android app** | [`android/`](android/README.md) | The web build as a native app for Google Play, with USB and Bluetooth MIDI |
 
 ![E-Piano: preset browser, three oscillators with sample loading, amp envelope, filter, output, and the inverted 24-key keyboard with mod wheel](docs/Screenshot%202026-11-17%20195810.png)
 
@@ -68,6 +69,7 @@ E-Piano is a 3-oscillator, 88-voice polyphonic synthesizer. It comes in two buil
 ```
 vst\build.bat      build VST3 + Standalone (Release)
 vst\install.bat    copy E-Piano.vst3 to C:\Program Files\Common Files\VST3
+vst\package.ps1    dist\E-Piano-<version>-Windows-x64.zip (Standalone + VST3 + install notes)
 ```
 
 - Loads as an instrument with stereo out and MIDI in. All 96 parameters can be automated, and a knob drag records as one automation move. MIDI events are applied at the exact sample they arrive.
@@ -77,6 +79,7 @@ vst\install.bat    copy E-Piano.vst3 to C:\Program Files\Common Files\VST3
 - User presets live in **`Documents\E-Piano\Presets`**, shared by every DAW and every instance. New, renamed and deleted files show up automatically within about 2 seconds, and each subfolder becomes a category. Deleting a preset moves it to the Recycle Bin.
 - The UI is the same HTML/SVG as the web build, shown inside the plugin through WebView2 and scaled to the window size.
 - Requirements: Windows, Visual Studio 2022 or 2026 (C++ workload), Git. JUCE 8.0.17 downloads automatically on the first build.
+- Release builds link the MSVC runtime statically, so users don't need the Visual C++ Redistributable, only the WebView2 runtime (built into Windows 11 and current Windows 10).
 
 Build details, the bridge between the UI and C++, tests and troubleshooting tips are in [vst/README.md](vst/README.md).
 
@@ -127,6 +130,8 @@ Build details, the bridge between the UI and C++, tests and troubleshooting tips
 
 ```
 web/index.html            web build (single file, generated: vst\webhost\build-web.ps1)
+docs/                     GitHub Pages: live copy of the web build + privacy policy
+android/                  Android app (Google Play); store listing in android/play-store/
 start.bat, serve.ps1      optional local server for the web build
 vst/                      VST3 plugin (JUCE 8): Source/, ui/, webhost/, presets/, tests/
 ```

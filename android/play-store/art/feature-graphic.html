@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>E-Piano feature graphic</title>
+<!-- Rendered to 1024x500 by ../render.mjs. Keep text away from the edges:
+     Google Play may crop or overlay them. -->
+<style>
+  html, body { margin: 0; width: 1024px; height: 500px; overflow: hidden; }
+  body {
+    background: radial-gradient(900px 420px at 30% -10%, #23262d 0%, #0a0b0d 65%) #0a0b0d;
+    font-family: "Segoe UI", system-ui, sans-serif; color: #e6e7ea;
+    position: relative;
+  }
+  .text { position: absolute; left: 84px; top: 92px; }
+  .mark { font-size: 76px; font-weight: 800; letter-spacing: 0.18em; line-height: 1; }
+  .sub  { margin-top: 14px; font-size: 19px; letter-spacing: 0.3em; color: #ff8a3d;
+          text-shadow: 0 0 14px rgba(255, 138, 61, 0.45); }
+  .tag  { margin-top: 30px; font-size: 25px; color: #b9bdc4; line-height: 1.4; max-width: 470px; }
+  .keys { position: absolute; right: 72px; top: 96px; width: 380px; height: 300px;
+          filter: drop-shadow(0 18px 40px rgba(0, 0, 0, 0.8)); }
+</style>
+</head>
+<body>
+  <div class="text">
+    <div class="mark">E·PIANO</div>
+    <div class="sub">3-OSC · 88-VOICE · v1.0</div>
+    <div class="tag">Synthesizer with USB &amp; Bluetooth MIDI, 120 presets and a playable touch keyboard</div>
+  </div>
+  <!-- inverted keybed: black naturals, white sharps, orange top edge (as in the app) -->
+  <svg class="keys" viewBox="0 0 380 300" aria-hidden="true">
+    <rect x="0" y="0" width="380" height="300" rx="14" fill="#060708" stroke="#262a30" stroke-width="2"/>
+    <rect x="14" y="16" width="352" height="10" fill="#ff8a3d"/>
+    <g fill="#15171b" stroke="#2e3239" stroke-width="2">
+      <rect x="14"  y="26" width="50" height="258"/>
+      <rect x="64"  y="26" width="50" height="258"/>
+      <rect x="114" y="26" width="50" height="258"/>
+      <rect x="164" y="26" width="50" height="258"/>
+      <rect x="214" y="26" width="50" height="258"/>
+      <rect x="264" y="26" width="50" height="258"/>
+      <rect x="314" y="26" width="52" height="258"/>
+    </g>
+    <g fill="#f4f4f4">
+      <rect x="46"  y="26" width="34" height="160" rx="3"/>
+      <rect x="98"  y="26" width="34" height="160" rx="3"/>
+      <rect x="198" y="26" width="34" height="160" rx="3"/>
+      <rect x="248" y="26" width="34" height="160" rx="3"/>
+      <rect x="298" y="26" width="34" height="160" rx="3"/>
+    </g>
+  </svg>
+</body>
+</html>
