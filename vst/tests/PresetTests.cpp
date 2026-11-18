@@ -52,10 +52,22 @@ int main (int argc, char* argv[])
     CHECK (f[0].name == "Tine E-Piano");
     CHECK (f[50].name == "Glass Bells" && f[50].values[osc3Pitch] == 31.0f); // needs the +/-36 range
 
-    // the original 80 carry no modulation / drive / voice settings at all -> sound unchanged
+    // every factory preset gives the mod wheel a job (as Source or Via of a matrix route)
+    for (size_t pi = 0; pi < f.size(); ++pi)
+    {
+        bool wheel = false;
+        for (int s = 0; s < kNumModSlotsParam; ++s)
+            wheel = wheel || f[pi].values[(size_t) modParam (s, 1)] == 6.0f || f[pi].values[(size_t) modParam (s, 2)] == 6.0f;
+        if (! wheel) std::printf ("no mod wheel route: %s/%s\n", f[pi].category.toRawUTF8(), f[pi].name.toRawUTF8());
+        CHECK (wheel);
+    }
+
+    // the original 80 only gained mod-wheel routes (LFO 2 + matrix), which are silent
+    // with the wheel at 0: LFO 1, drive, voice and sample settings stay unset -> sound unchanged
     for (size_t pi = 0; pi < 80; ++pi)
         for (int i = master + 1; i < kNumParams; ++i)
-            CHECK (std::isnan (f[pi].values[(size_t) i]));
+            if (i < lfo2On || i >= drvOn)
+                CHECK (std::isnan (f[pi].values[(size_t) i]));
 
     // the new Motion presets do use the new features
     CHECK (f[80].category == "Motion" && f[80].name == "Classic Wobble Bass");

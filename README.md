@@ -58,6 +58,7 @@ E-Piano is a 3-oscillator, 88-voice polyphonic synthesizer. It comes in two buil
 
 **Presets**
 - **120 factory presets** in 12 categories of 10: Keys, Pads, Brass, Organ, Bass, Bells, Strings, Leads, **Dubstep** and **Dubstep 2** (twenty tempo-synced wobbles: 1/8, triplet, half-time, stutter, growl, laser, riddim, talking, screech, sub-drop, vowel, tearout, metallic and Reese wobbles, plus poly wobble chords, most with extra depth on the mod wheel), **Jazz** (Rhodes and Wurly with tremolo, B3 organ with a Leslie-style effect, tremolo vibes, walking upright bass, brushed pad, muted trumpet and flute with vibrato on the mod wheel, jazz guitar, late-night keys), plus **Motion**, which shows off the new features: wobble, dubstep, Reese and rhythmic basses, a vibrato lead, tremolo and modulated pads, distorted bass, S&H bleeps and auto-pan keys. Each preset's level was set by rendering it, so switching presets keeps a steady volume.
+- **Every factory preset responds to the mod wheel**: vibrato on Keys, Pads, Brass, Strings, Leads and Bells; a rotary-style shimmer on Organ; the filter opens on Bass; deeper tremolo, vibrato or filter on the Motion and Jazz presets that didn't already use it. With the wheel at 0 they sound exactly as before.
 - Presets, projects and `.epreset` files from v0.9 sound exactly as before in v1.0: everything new defaults to off or neutral.
 - A category browser, ‹ › arrows to step through every preset, and a `*` after the name when you've changed something since loading.
 - **Save / Load / Folder** using `.epreset` files (plain JSON). The plugin and the web build use the same format, so presets move freely between them.
@@ -99,7 +100,7 @@ Build details, the bridge between the UI and C++, tests and troubleshooting tips
 - **Modulation:** two LFOs (tempo sync, Global or per-Voice, Free or Note trigger), an 8-route mod matrix with *Via*, and mod wheel support with an on-screen wheel.
 - **Sound:** per-voice drive (Soft, Hard, Fold, Crush), Mono and Legato modes with glide, and stereo pan.
 - **Samples:** WAV sample playback per oscillator (One-shot, Loop, Cycle), saved inside projects and presets.
-- **Presets:** 120 level-matched factory presets. New since v0.9: Motion, Dubstep, Dubstep 2 and Jazz.
+- **Presets:** 120 level-matched factory presets. New since v0.9: Motion, Dubstep, Dubstep 2 and Jazz. All 120 now respond to the mod wheel (before, only 28 did, so the wheel seemed to do nothing on the rest).
 - **DAW automation:** right-click any control for the DAW's own parameter menu, including FL Studio's *Create automation clip*.
 - **Under the hood:**
   - The C++ and JS engines are line-for-line twins with a shared deterministic RNG. They agree to within 5×10⁻⁵ on 23 test scenarios, down from about 1% before.
