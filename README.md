@@ -5,7 +5,7 @@ E-Piano is a 3-oscillator, 88-voice polyphonic synthesizer. It comes in two buil
 | Build | Where | What it is |
 |---|---|---|
 | **VST3 plugin** | [`vst/`](vst/README.md) | C++ / JUCE 8 instrument plugin for any VST3 DAW, plus a Standalone app |
-| **Web build** | [`web/index.html`](https://github.com/BlinkZer0/E-PianoVST) | One self-contained HTML file that runs in Chrome or Edge with Web MIDI |
+| **Web build** | [`web/index.html`](https://blinkzer0.github.io/E-PianoVST) | One self-contained HTML file that runs in Chrome or Edge with Web MIDI |
 
 ![E-Piano: preset browser, three oscillators with sample loading, amp envelope, filter, output, and the inverted 24-key keyboard with mod wheel](docs/Screenshot%202026-11-17%20195810.png)
 
