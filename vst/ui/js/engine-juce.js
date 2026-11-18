@@ -12,7 +12,7 @@ class JuceEngine {
     this.ready = true;
     this.handlers = {};
     if (this.backend) {
-      for (const ev of ['params', 'notes', 'stats', 'config', 'presetList', 'preset', 'saveResult', 'message', 'midiInputs']) {
+      for (const ev of ['params', 'notes', 'stats', 'config', 'presetList', 'preset', 'saveResult', 'message', 'midiInputs', 'samples']) {
         this.backend.addEventListener(ev, (data) => { if (this.handlers[ev]) this.handlers[ev](data); });
       }
     }
@@ -34,6 +34,19 @@ class JuceEngine {
   noteOff(note) { this.emit('noteOff', { note }); }
   panic() { this.emit('panic'); }
   modWheel(value) { this.emit('modWheel', { value }); }
+
+  // right-click on a control -> the host's parameter menu (automation, MIDI learn...)
+  paramMenu(id, x, y) { this.emit('paramMenu', { id, x: Math.round(x), y: Math.round(y) }); }
+
+  // oscillator samples (osc = 0..2)
+  loadSample(osc) { this.emit('loadSample', { osc }); }
+  clearSample(osc) { this.emit('clearSample', { osc }); }
+  async dropSample(osc, file) {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    let bin = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    this.emit('dropSample', { osc, name: file.name, data: btoa(bin) });
+  }
 
   // web build only (the plugin takes tempo + MIDI from the host)
   setTempo(bpm) { this.emit('setTempo', { bpm }); }

@@ -3,6 +3,7 @@
 #include <juce_audio_utils/juce_audio_utils.h>
 #include "Params.h"
 #include "PresetManager.h"
+#include "SampleData.h"
 #include "SynthEngine.h"
 #include "EngineParamsFromValues.h"
 
@@ -10,7 +11,7 @@ class EPianoProcessor : public juce::AudioProcessor
 {
 public:
     EPianoProcessor();
-    ~EPianoProcessor() override = default;
+    ~EPianoProcessor() override;
 
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
     void releaseResources() override {}
@@ -50,6 +51,15 @@ public:
     epiano::PresetManager presetManager;
 
     //==============================================================================
+    // Oscillator samples (message thread). nullptr = no sample.
+    epiano::SamplePtr getSample (int osc) const;
+    void setSample (int osc, epiano::SamplePtr s);
+    bool loadSampleFile (int osc, const juce::File& file, juce::String& message);
+    bool loadSampleMemory (int osc, const void* data, size_t size, const juce::String& name, juce::String& message);
+    void collectRetiredSamples();
+    std::atomic<int> sampleVersion { 0 };
+
+    //==============================================================================
     // Used by the editor (message thread)
     juce::AudioProcessorValueTreeState apvts;
     juce::MidiKeyboardState keyboardState;   // UI notes in, all sounding notes out
@@ -79,6 +89,21 @@ private:
 
     mutable juce::CriticalSection presetLock;
     PresetInfo presetInfo;
+
+    // Lock-free handoff of sample buffers to the audio thread: the message thread
+    // posts `incoming`; the audio thread swaps it in at the start of a block and
+    // parks the old buffer in `retired`, which the message thread deletes.
+    struct AudioSample { std::vector<float> data; double rate = 44100; int root = 60; };
+    struct SampleSlot
+    {
+        std::atomic<AudioSample*> incoming { nullptr };
+        std::atomic<AudioSample*> retired { nullptr };
+        AudioSample* active = nullptr; // audio thread only
+    };
+    std::array<SampleSlot, epiano::kNumOsc> sampleSlots;
+    std::array<epiano::SamplePtr, epiano::kNumOsc> uiSamples;
+    mutable juce::CriticalSection sampleLock;
+    void swapInSamples(); // audio thread
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (EPianoProcessor)
 };

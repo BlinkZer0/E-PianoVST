@@ -45,6 +45,42 @@ enum ModDest   { dstNone, dstCutoff, dstReso, dstPitchAll, dstOsc1Pitch, dstOsc2
 enum LfoWave   { lfoSine, lfoTriangle, lfoSquare, lfoSawUp, lfoSawDown, lfoSampleHold };
 enum DriveType { driveSoft, driveHard, driveFold, driveCrush };
 enum VoiceMode { modePoly, modeMono, modeLegato };
+enum SampleMode { smpOff, smpOneShot, smpLoop, smpCycle };
+
+// A user sample as seen by the audio thread (data owned elsewhere, see PluginProcessor).
+struct SampleBuffer
+{
+    const float* data = nullptr;
+    int length = 0;
+    double rate = 44100;
+    int root = 60;
+    double incScale = 0;   // file samples per (dt) unit: rate / rootFreq
+
+    bool valid() const { return data != nullptr && length > 1; }
+    static SampleBuffer make (const float* d, int len, double rate, int root)
+    {
+        SampleBuffer b { d, len, rate, root, 0 };
+        b.incScale = rate / (440.0 * std::pow (2.0, (root - 69) / 12.0));
+        return b;
+    }
+};
+
+// 4-point Hermite interpolation; wrap = loop/cycle, otherwise clamp at the ends
+inline double hermiteAt (const SampleBuffer& b, double pos, bool wrap)
+{
+    const int len = b.length;
+    const int i = (int) pos;
+    const double f = pos - i;
+    auto at = [&b, len, wrap] (int j) -> double
+    {
+        if (wrap) { j %= len; if (j < 0) j += len; }
+        else j = j < 0 ? 0 : (j >= len ? len - 1 : j);
+        return b.data[j];
+    };
+    const double xm1 = at (i - 1), x0 = at (i), x1 = at (i + 1), x2 = at (i + 2);
+    const double c = (x1 - xm1) * 0.5, v = x0 - x1, w = c + v, a = w + v + (x2 - x0) * 0.5, bn = w + a;
+    return ((a * f - bn) * f + c) * f + x0;
+}
 
 // Synced LFO divisions, in quarter-note beats (order = lfoNDiv choice list)
 constexpr double kLfoDivBeats[] = { 4.0, 3.0, 2.0, 4.0 / 3.0, 1.5, 1.0, 2.0 / 3.0, 0.75, 0.5, 1.0 / 3.0,
@@ -54,7 +90,7 @@ constexpr int kNumLfoDivs = 15;
 // Parameter snapshot, taken once per processBlock.
 struct EngineParams
 {
-    struct Osc { bool on = false; int wave = 0; double semis = 0; double level = 0; };
+    struct Osc { bool on = false; int wave = 0; double semis = 0; double level = 0; int sampleMode = smpOff; };
     struct Lfo
     {
         bool on = false; int wave = lfoSine; double rate = 2; bool sync = false; int div = 8;
@@ -103,8 +139,27 @@ inline double polyBlep (double t, double dt)
 struct Oscillator
 {
     double phase = 0;
+    double pos = 0;   // sample playback position (One-shot / Loop)
 
     void reset (double p) { phase = p; }
+
+    // Sample mode. dt is the oscillator's normalised frequency (freq / sr).
+    double nextSample (const SampleBuffer& b, int mode, double dt)
+    {
+        if (mode == smpCycle)   // whole file = one cycle, pitched like a waveform
+        {
+            const double y = hermiteAt (b, phase * b.length, true);
+            double p = phase + dt; if (p >= 1) p -= 1;
+            phase = p;
+            return y;
+        }
+        const bool loop = mode == smpLoop;
+        if (! loop && pos >= b.length) return 0.0;    // one-shot finished
+        const double y = hermiteAt (b, pos, loop);
+        pos += dt * b.incScale;
+        if (loop) while (pos >= b.length) pos -= b.length;
+        return y;
+    }
 
     double next (int wave, double dt)
     {
@@ -430,6 +485,9 @@ public:
         if (! on) for (auto& v : voices) if (v.sustained) v.release();
     }
 
+    // Audio thread only (the processor hands buffers over lock-free).
+    void setSample (int osc, const SampleBuffer& b) { if (osc >= 0 && osc < kNumOsc) samples[(size_t) osc] = b; }
+
     void setPitchBend (double v) { bend = v; }
     void setModWheel (double v)  { wheelTarget = std::min (std::max (v, 0.0), 1.0); }
 
@@ -548,7 +606,8 @@ private:
             for (int k = 0; k < kNumOsc; ++k)
             {
                 const int w = params.osc[(size_t) k].wave;
-                v.osc[(size_t) k].reset (w == 1 || w == 2 ? rng.uni() : 0.0);
+                const bool smp = params.osc[(size_t) k].sampleMode != smpOff && samples[(size_t) k].valid();
+                v.osc[(size_t) k].reset (! smp && (w == 1 || w == 2) ? rng.uni() : 0.0);
             }
             v.filter.reset();
             v.drive.reset();
@@ -561,6 +620,7 @@ private:
             for (int i = 0; i < kNumLfo; ++i)
                 if (params.lfo[(size_t) i].retrig) v.lfo[(size_t) i].retrigger (0.0, rng);
         }
+        for (auto& o : v.osc) o.pos = 0;   // samples restart on every (re)trigger, like a struck key
         v.note = note;
         v.velocity = vel;
         v.velGain = 0.1 + 0.9 * std::pow (vel / 127.0, 1.5);
@@ -695,6 +755,10 @@ private:
         const double dpl = (T.panL - pl) * inv, dpr = (T.panR - pr) * inv;
         const bool on0 = P.osc[0].on, on1 = P.osc[1].on, on2 = P.osc[2].on;
         const int w0 = P.osc[0].wave, w1 = P.osc[1].wave, w2 = P.osc[2].wave;
+        // sample mode only when a sample is actually loaded (otherwise the waveform plays)
+        const int m0 = samples[0].valid() ? P.osc[0].sampleMode : smpOff;
+        const int m1 = samples[1].valid() ? P.osc[1].sampleMode : smpOff;
+        const int m2 = samples[2].valid() ? P.osc[2].sampleMode : smpOff;
         const bool drv = P.drive.on;
 
         for (int i = 0; i < n; ++i)
@@ -704,9 +768,9 @@ private:
             g += dg; k += dk; amp += damp; pl += dpl; pr += dpr;
 
             double s = 0;
-            if (on0) s += l0 * v.osc[0].next (w0, dt0);
-            if (on1) s += l1 * v.osc[1].next (w1, dt1);
-            if (on2) s += l2 * v.osc[2].next (w2, dt2);
+            if (on0) s += l0 * (m0 ? v.osc[0].nextSample (samples[0], m0, dt0) : v.osc[0].next (w0, dt0));
+            if (on1) s += l1 * (m1 ? v.osc[1].nextSample (samples[1], m1, dt1) : v.osc[1].next (w1, dt1));
+            if (on2) s += l2 * (m2 ? v.osc[2].nextSample (samples[2], m2, dt2) : v.osc[2].next (w2, dt2));
             double y = v.filter.process (s, g, k) * v.env.next (envc) * amp;
             if (drv) y = applyDrive (v.drive, y);
             y *= kVoiceGain;
@@ -751,6 +815,7 @@ private:
     }
 
     std::array<Voice, kNumVoices> voices;
+    std::array<SampleBuffer, kNumOsc> samples {};
     std::array<double, kChunk> mixL {}, mixR {};
     std::array<int, 128> keys {};
     int keyCount = 0;

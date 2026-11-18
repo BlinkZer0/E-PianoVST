@@ -10,6 +10,7 @@ static int failures = 0;
 
 int runParity (const juce::File&);
 int runLoudness();
+int runBench();
 
 int main (int argc, char* argv[])
 {
@@ -19,14 +20,16 @@ int main (int argc, char* argv[])
         return runParity (juce::File::getCurrentWorkingDirectory().getChildFile (juce::String (argv[2])));
     if (argc >= 2 && juce::String (argv[1]) == "--loudness")
         return runLoudness();
+    if (argc >= 2 && juce::String (argv[1]) == "--bench")
+        return runBench();
 
     PresetManager pm;
     const auto& f = pm.factory();
     std::printf ("factory presets: %d\n", (int) f.size());
-    CHECK (f.size() == 90);
-    CHECK ((int) paramDefs().size() == kNumParams && kNumParams == 93);
+    CHECK (f.size() == 100);
+    CHECK ((int) paramDefs().size() == kNumParams && kNumParams == 96);
 
-    // 9 categories x 10. The v0.9 parameters are always present and in range;
+    // 10 categories x 10. The v0.9 parameters are always present and in range;
     // newer ones are either absent (NaN -> neutral default) or in range.
     juce::StringArray cats;
     for (const auto& p : f)
@@ -42,7 +45,8 @@ int main (int argc, char* argv[])
         }
     }
     std::printf ("categories: %s\n", cats.joinIntoString (", ").toRawUTF8());
-    CHECK (cats.size() == 9);
+    CHECK (cats.size() == 10);
+    CHECK (f[90].category == "Dubstep" && f[90].name == "Wub Machine" && f[90].values[lfo1Sync] == 1.0f);
     CHECK (f[0].name == "Tine E-Piano");
     CHECK (f[50].name == "Glass Bells" && f[50].values[osc3Pitch] == 31.0f); // needs the +/-36 range
 
@@ -101,6 +105,54 @@ int main (int argc, char* argv[])
     CHECK (partial.values[osc1Wave] == 2.0f);
     CHECK (partial.values[fltCutoff] == 20000.0f);          // clamped to range
     CHECK (std::isnan (partial.values[ampLevel]));
+
+    // samples: embedded in the preset, round-trip within 16-bit precision
+    {
+        auto s = std::make_shared<SampleData>();
+        s->name = "test.wav"; s->rate = 44100; s->root = 57;
+        for (int i = 0; i < 1000; ++i) s->data.push_back ((float) std::sin (i * 0.05) * 0.9f);
+        PresetData withSample = f[0];
+        withSample.name = "With Sample";
+        withSample.samples[1] = s;
+        CHECK (PresetManager::writeFile (tmp, withSample, err));
+        PresetData back;
+        CHECK (PresetManager::readFile (tmp, back, err));
+        CHECK (back.samples[0] == nullptr && back.samples[2] == nullptr && back.samples[1] != nullptr);
+        if (auto r = back.samples[1])
+        {
+            CHECK (r->name == "test.wav" && r->rate == 44100 && r->root == 57 && r->data.size() == 1000);
+            float worst = 0;
+            for (size_t i = 0; i < r->data.size(); ++i) worst = std::max (worst, std::abs (r->data[i] - s->data[i]));
+            CHECK (worst < 1.0f / 32767.0f);
+        }
+
+        // decoding a real WAV file: written with JUCE, read back mono + peak-normalised, smpl root note honoured
+        const auto wav = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("epiano-test.wav");
+        {
+            juce::WavAudioFormat fmt;
+            std::unique_ptr<juce::OutputStream> out = std::make_unique<juce::FileOutputStream> (wav);
+            const auto opts = juce::AudioFormatWriterOptions{}.withSampleRate (48000).withNumChannels (2).withBitsPerSample (16)
+                                  .withMetadataValues ({ { "MidiUnityNote", "48" }, { "NumSampleLoops", "0" } });
+            auto w = fmt.createWriterFor (out, opts);
+            CHECK (w != nullptr);
+            juce::AudioBuffer<float> b (2, 4800);
+            for (int i = 0; i < 4800; ++i) { b.setSample (0, i, 0.25f * (float) std::sin (i * 0.1)); b.setSample (1, i, 0.25f * (float) std::sin (i * 0.1)); }
+            if (w) w->writeFromAudioSampleBuffer (b, 0, 4800);
+        }
+        juce::String msg;
+        auto decoded = decodeSampleFile (wav, msg);
+        CHECK (decoded != nullptr);
+        if (decoded)
+        {
+            float peak = 0;
+            for (auto x : decoded->data) peak = std::max (peak, std::abs (x));
+            CHECK (decoded->data.size() == 4800 && decoded->rate == 48000 && decoded->root == 48);
+            CHECK (std::abs (peak - 1.0f) < 1e-3f);
+        }
+        wav.deleteFile();
+        tmp.replaceWithText ("not audio");
+        CHECK (decodeSampleFile (tmp, msg) == nullptr && msg.isNotEmpty());
+    }
 
     // garbage is rejected with a message
     tmp.replaceWithText ("not json");

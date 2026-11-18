@@ -76,6 +76,21 @@ int runParity (const juce::File& scenarioFile)
         engine.prepare (kSr);
         std::array<float, kBlock> L {}, R {};
 
+        // generated test samples: decaying sine, identical in the JS harness
+        std::vector<std::vector<float>> sampleStore;
+        if (auto* smps = sc["samples"].getArray())
+            for (const auto& s : *smps)
+            {
+                const int len = (int) s["length"];
+                const double rate = (double) s["rate"], freq = (double) s["freq"];
+                std::vector<float> d ((size_t) len);
+                for (int i = 0; i < len; ++i)
+                    d[(size_t) i] = (float) (std::sin (2 * kPi * freq * i / rate) * std::exp (-3.0 * i / len));
+                sampleStore.push_back (std::move (d));
+                const auto& data = sampleStore.back();
+                engine.setSample ((int) s["osc"], SampleBuffer::make (data.data(), len, rate, (int) s["root"]));
+            }
+
         for (int b = 0; b < blocks; ++b)
         {
             engine.setParams (makeEngineParams ([&values] (int i) { return values[(size_t) i]; }));
@@ -115,6 +130,47 @@ int runParity (const juce::File& scenarioFile)
         results.add (juce::var (o));
     }
     std::printf ("%s\n", juce::JSON::toString (juce::var (results), true).toRawUTF8());
+    return 0;
+}
+
+// Worst-case CPU: 88 voices, 3 saws, both LFOs per voice, 4 routes, drive on.
+int runBench()
+{
+    auto values = defaultValues();
+    auto set = [&values] (const char* id, float v) { values[(size_t) paramIndex (id)] = v; };
+    set ("osc1Wave", 1); set ("osc2On", 1); set ("osc2Wave", 1); set ("osc3On", 1); set ("osc3Wave", 2);
+    set ("ampSustain", 1); set ("ampRelease", 5);
+    set ("lfo1On", 1); set ("lfo1Mode", 1); set ("lfo2On", 1); set ("lfo2Mode", 1); set ("lfo2Wave", 5);
+    set ("mod1Src", 1); set ("mod1Dst", 1); set ("mod1Amt", 0.3f);
+    set ("mod2Src", 2); set ("mod2Dst", 11); set ("mod2Amt", 0.5f);
+    set ("mod3Src", 1); set ("mod3Via", 6); set ("mod3Dst", 3); set ("mod3Amt", 0.02f);
+    set ("mod4Src", 5); set ("mod4Dst", 2); set ("mod4Amt", 0.2f);
+    set ("drvOn", 1); set ("drvType", 0); set ("drvDrive", 0.5f);
+
+    for (const bool features : { false, true })
+    {
+        auto v = values;
+        if (! features)
+            for (int i = master + 1; i < kNumParams; ++i) v[(size_t) i] = paramDefs()[(size_t) i].def;
+        SynthEngine engine;
+        engine.prepare (kSr);
+        std::array<float, 512> L {}, R {};
+        engine.setParams (makeEngineParams ([&v] (int i) { return v[(size_t) i]; }));
+        for (int n = 20; n < 108; ++n) engine.noteOn (n, 100);
+        engine.setModWheel (0.5);
+        const int blocks = (int) (kSr * 10 / 512);
+        const auto t0 = juce::Time::getMillisecondCounterHiRes();
+        for (int b = 0; b < blocks; ++b)
+        {
+            engine.setParams (makeEngineParams ([&v] (int i) { return v[(size_t) i]; }));
+            engine.setTransport (120.0, 0.0, false);
+            engine.render (L.data(), R.data(), 512);
+        }
+        const double ms = juce::Time::getMillisecondCounterHiRes() - t0;
+        std::printf ("%-40s 88 voices: %6.0f ms for 10 s of audio  (%.1f%% of one core, %d voices active)\n",
+                     features ? "LFOs x2 per voice + 4 routes + drive" : "v0.9 patch (no new features)",
+                     ms, ms / 100.0, engine.activeVoices());
+    }
     return 0;
 }
 

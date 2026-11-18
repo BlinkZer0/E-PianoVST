@@ -21,6 +21,7 @@ EngineParams makeEngineParams (GetValue&& get)
         o.wave  = choice (b + 1, 3);
         o.semis = get (b + 2) + get (b + 3) / 100.0;
         o.level = get (b + 4);
+        o.sampleMode = choice (osc1Smp + k, 3);
     }
     p.attack   = get (ampAttack);
     p.decay    = get (ampDecay);

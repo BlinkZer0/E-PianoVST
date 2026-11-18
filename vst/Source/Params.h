@@ -36,6 +36,8 @@ enum ParamIndex
     drvOn, drvType, drvDrive, drvTone, drvMix, drvOut,
     // ---- voice ------------------------------------------------------------
     voiceMode, glideOn, glideTime, glideMode,
+    // ---- samples (per oscillator: play a loaded sample instead of the waveform)
+    osc1Smp, osc2Smp, osc3Smp,
     kNumParams
 };
 
@@ -69,6 +71,7 @@ inline juce::StringArray modDstChoices()    { return { "None", "Cutoff", "Resona
 inline juce::StringArray driveTypeChoices() { return { "Soft", "Hard", "Fold", "Crush" }; }
 inline juce::StringArray voiceModeChoices() { return { "Poly", "Mono", "Legato" }; }
 inline juce::StringArray glideModeChoices() { return { "Always", "Legato" }; }
+inline juce::StringArray sampleModeChoices() { return { "Off", "One-shot", "Loop", "Cycle" }; }
 
 inline const std::vector<ParamDef>& paramDefs()
 {
@@ -138,6 +141,9 @@ inline const std::vector<ParamDef>& paramDefs()
         add ("glideOn", "Glide On", Kind::Bool, 0, 1, 0);
         add ("glideTime", "Glide Time", Kind::Float, 0.001f, 5.0f, 0.1f, Unit::Seconds, true);
         choice ("glideMode", "Glide Mode", glideModeChoices(), 0);
+
+        for (int n = 1; n <= 3; ++n)
+            choice ("osc" + juce::String (n) + "Smp", "Osc " + juce::String (n) + " Sample", sampleModeChoices(), 0);
 
         jassert ((int) d.size() == kNumParams);
         return d;

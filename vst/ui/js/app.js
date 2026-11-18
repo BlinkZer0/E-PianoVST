@@ -53,6 +53,7 @@
   function control(Cls, id, ...extra) {
     const c = new Cls(PARAM_BY_ID[id], values[id], (v) => setParam(id, v), ...extra);
     (bound[id] = bound[id] || []).push(c);
+    c.el.dataset.param = id;
     return c;
   }
 
@@ -281,10 +282,15 @@
       const g = `osc${n}`;
       if (group && group !== g) continue;
       const scr = screens[g], on = values[`${g}On`] >= 0.5, w = values[`${g}Wave`] | 0;
-      scr.path.setAttribute('d', wavePath(w, 200, 48));
-      scr.text.textContent = on
-        ? `${WAVE_NAMES[w].toUpperCase()}  ${formatParam(PARAM_BY_ID[`${g}Pitch`], values[`${g}Pitch`])}  ${formatParam(PARAM_BY_ID[`${g}Fine`], values[`${g}Fine`])}`
-        : 'OFF';
+      const smpMode = values[`${g}Smp`] | 0, smp = sampleSlots[n - 1];
+      const pitch = `${formatParam(PARAM_BY_ID[`${g}Pitch`], values[`${g}Pitch`])}  ${formatParam(PARAM_BY_ID[`${g}Fine`], values[`${g}Fine`])}`;
+      const useSample = smpMode > 0 && smp;
+      scr.path.setAttribute('d', useSample ? peaksPath(smp.peaks, 200, 48) : wavePath(w, 200, 48));
+      scr.root.classList.toggle('sample', !!useSample);
+      scr.text.textContent = !on ? 'OFF'
+        : useSample ? `${SAMPLE_MODES[smpMode].toUpperCase()}  ${pitch}`
+        : smpMode > 0 ? 'NO SAMPLE — LOAD A WAV'
+        : `${WAVE_NAMES[w].toUpperCase()}  ${pitch}`;
       scr.root.closest('.panel').classList.toggle('off', !on);
     }
     if (!group || group === 'amp') {
@@ -310,6 +316,7 @@
         else { dragging.delete(id); engine.endGesture(id); }
       });
     knobs[id] = k;
+    k.el.dataset.param = id;
     row.appendChild(k.el);
   }
 
@@ -322,6 +329,30 @@
   }
 
   const oscRow = $('#osc-row');
+  const sampleUi = [];                 // per osc: { name, clear }
+  let sampleSlots = [null, null, null]; // from the host: { name, root, seconds, peaks } | null
+
+  engine.on('samples', ({ slots }) => {
+    sampleSlots = slots;
+    slots.forEach((s, k) => {
+      const u = sampleUi[k];
+      u.name.textContent = s ? `${s.name} · ${midiNoteName(s.root)} · ${s.seconds.toFixed(2)} s` : 'no sample';
+      u.name.title = s ? `${s.name}\nroot ${midiNoteName(s.root)}, ${s.seconds.toFixed(2)} s` : '';
+      u.name.classList.toggle('loaded', !!s);
+      u.clear.style.visibility = s ? 'visible' : 'hidden';
+    });
+    refreshScreens();
+  });
+
+  function peaksPath(peaks, w, h) {
+    const n = peaks.length / 2, mid = h / 2, amp = h / 2 - 4;
+    let d = '';
+    for (let i = 0; i < n; i++) {
+      const x = ((i + 0.5) / n * w).toFixed(1);
+      d += `M${x} ${(mid - peaks[2 * i + 1] * amp).toFixed(1)} V${(mid - peaks[2 * i] * amp + 0.6).toFixed(1)} `;
+    }
+    return d;
+  }
   for (let n = 1; n <= 3; n++) {
     const btn = control(ToggleButton, `osc${n}On`).el;
     btn.setAttribute('aria-label', `Oscillator ${n} on/off`);
@@ -331,6 +362,33 @@
     const row = el('div', 'knob-row');
     ['Wave', 'Pitch', 'Fine', 'Level'].forEach(f => addKnob(row, `osc${n}${f}`));
     panel.appendChild(row);
+
+    // sample: play a loaded WAV instead of the waveform
+    const smpRow = el('div', 'smp-row');
+    const mode = control(SelectBox, `osc${n}Smp`, ['Waveform', 'One-shot', 'Loop', 'Cycle']);
+    mode.el.title = 'Play the loaded sample instead of the waveform';
+    const load = el('button', 'pd-btn smp-load', 'LOAD WAV');
+    load.type = 'button';
+    load.title = 'Load a WAV / AIFF / FLAC sample (or drop a file on this panel)';
+    load.addEventListener('click', () => engine.loadSample(n - 1));
+    const name = el('span', 'smp-name', 'no sample');
+    const clear = el('button', 'mx-del smp-clear', '×');
+    clear.type = 'button';
+    clear.title = 'Remove the sample';
+    clear.addEventListener('click', () => engine.clearSample(n - 1));
+    smpRow.append(mode.el, load, name, clear);
+    panel.appendChild(smpRow);
+    sampleUi.push({ name, clear });
+
+    // drag & drop an audio file onto the panel
+    panel.addEventListener('dragover', (e) => { e.preventDefault(); panel.classList.add('drop'); });
+    panel.addEventListener('dragleave', () => panel.classList.remove('drop'));
+    panel.addEventListener('drop', (e) => {
+      e.preventDefault();
+      panel.classList.remove('drop');
+      const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if (f) { logMidi(`Loading ${f.name}…`); engine.dropSample(n - 1, f).catch(err => logMidi(String(err))); }
+    });
     oscRow.appendChild(panel);
   }
 
@@ -769,8 +827,14 @@
   }
   window.addEventListener('resize', fit);
 
-  // No browser context menu in the plugin; Shift+right-click still opens it (Inspect = devtools).
-  document.addEventListener('contextmenu', (e) => { if (engine.connected && !e.shiftKey) e.preventDefault(); });
+  // Right-click on any control = the host's parameter menu (FL Studio: Create automation clip,
+  // Link to controller, ...). Elsewhere no browser menu; Shift+right-click still opens it (Inspect).
+  document.addEventListener('contextmenu', (e) => {
+    if (!engine.connected || e.shiftKey) return;
+    e.preventDefault();
+    const ctl = e.target.closest('[data-param]');
+    if (ctl) engine.paramMenu(ctl.dataset.param, e.clientX, e.clientY);
+  });
 
   // -------------------------------------------------------------- init -----
   renderPresetName();

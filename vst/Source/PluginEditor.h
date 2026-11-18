@@ -8,11 +8,13 @@
 //   UI -> C++ events : uiReady, setParam{id,value}, gesture{id,begin},
 //                      noteOn{note,vel}, noteOff{note}, panic,
 //                      loadPreset{id}, savePreset{name,overwrite}, deletePreset{id},
-//                      loadPresetFile, openPresetFolder
+//                      loadPresetFile, openPresetFolder, paramMenu{id,x,y},
+//                      loadSample{osc}, dropSample{osc,name,data}, clearSample{osc}, modWheel{value}
 //   C++ -> UI events : params{id:value...}, notes{on[],off[]},
 //                      stats{voices,peak,sustain}, config{...},
 //                      presetList{presets[],folder}, preset{id,name,category},
-//                      saveResult{ok,exists,name,error}, message{text}
+//                      saveResult{ok,exists,name,error}, message{text},
+//                      samples{slots[{name,root,seconds,peaks}|null]}
 class EPianoEditor : public juce::AudioProcessorEditor, private juce::Timer
 {
 public:
@@ -36,6 +38,9 @@ private:
     void sendPreset();
     void sendMessage (const juce::String& text);
     void chooseAndLoadPresetFile();
+    void chooseSample (int osc);
+    void sendSamples();
+    void showParamMenu (const juce::var&);
 
     EPianoProcessor& processor;
 
@@ -43,6 +48,7 @@ private:
     std::array<bool, epiano::kNumParams> inGesture {};
     std::bitset<128> lastNotes;
     int lastPresetVersion = -1;
+    int lastSampleVersion = -1;
     int ticks = 0;
     bool uiReady = false;
     std::unique_ptr<juce::FileChooser> fileChooser;

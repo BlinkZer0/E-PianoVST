@@ -139,7 +139,8 @@ juce::File PresetManager::fileForName (const juce::String& name) const
 //==============================================================================
 // User file format:
 //   { "format": "E-Piano Preset", "version": 1, "name": "...", "category": "...",
-//     "params": { "<paramId>": value, ... } }      (master is never stored)
+//     "params": { "<paramId>": value, ... },        (master is never stored)
+//     "samples": { "1": { name, rate, root, pcm16 }, ... } }   (optional, see SampleData.h)
 bool PresetManager::readFile (const juce::File& f, PresetData& d, juce::String& error)
 {
     juce::var json;
@@ -171,6 +172,9 @@ bool PresetManager::readFile (const juce::File& f, PresetData& d, juce::String& 
     d.name = json["name"].toString().trim();
     if (d.name.isEmpty()) d.name = f.getFileNameWithoutExtension();
     d.category = json["category"].toString();
+    if (json["samples"].isObject())
+        for (int k = 0; k < 3; ++k)
+            d.samples[(size_t) k] = sampleFromVar (json["samples"][juce::Identifier (juce::String (k + 1))]);
     return true;
 }
 
@@ -190,6 +194,14 @@ bool PresetManager::writeFile (const juce::File& f, const PresetData& d, juce::S
     root->setProperty ("name", d.name);
     root->setProperty ("category", d.category);
     root->setProperty ("params", juce::var (params));
+    auto* samples = new juce::DynamicObject();
+    for (int k = 0; k < 3; ++k)
+        if (d.samples[(size_t) k] != nullptr)
+            samples->setProperty (juce::String (k + 1), sampleToVar (*d.samples[(size_t) k]));
+    if (samples->getProperties().size() > 0)
+        root->setProperty ("samples", juce::var (samples));
+    else
+        delete samples;
 
     if (! f.getParentDirectory().createDirectory() || ! f.replaceWithText (juce::JSON::toString (juce::var (root))))
     {

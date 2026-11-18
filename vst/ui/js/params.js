@@ -17,6 +17,7 @@ const MOD_DESTS = ['None', 'Cutoff', 'Resonance', 'Pitch (All)', 'Osc 1 Pitch', 
 const DRIVE_TYPES = ['Soft', 'Hard', 'Fold', 'Crush'];
 const VOICE_MODES = ['Poly', 'Mono', 'Legato'];
 const GLIDE_MODES = ['Always', 'Legato'];
+const SAMPLE_MODES = ['Off', 'One-shot', 'Loop', 'Cycle'];
 const NUM_VOICES = 88;
 const NUM_MOD_SLOTS = 8;
 
@@ -88,6 +89,10 @@ const PARAM_DEFS = [
   boolParam('glideOn', 'Glide', 'voice', 0),
   { id: 'glideTime', name: 'Time', group: 'voice', min: 0.001, max: 5, def: 0.1, unit: 's', skew: 'log' },
   choiceParam('glideMode', 'Glide Mode', 'voice', GLIDE_MODES, 0),
+  // play a loaded sample instead of the waveform (per oscillator)
+  choiceParam('osc1Smp', 'Sample', 'osc1', SAMPLE_MODES, 0),
+  choiceParam('osc2Smp', 'Sample', 'osc2', SAMPLE_MODES, 0),
+  choiceParam('osc3Smp', 'Sample', 'osc3', SAMPLE_MODES, 0),
 ];
 
 const PARAM_BY_ID = Object.fromEntries(PARAM_DEFS.map(d => [d.id, d]));

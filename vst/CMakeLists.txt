@@ -52,7 +52,8 @@ juce_add_binary_data(EPianoUI SOURCES ${EPIANO_UI_FILES} presets/factory_presets
 target_sources(EPianoVST PRIVATE
     Source/PluginProcessor.cpp
     Source/PluginEditor.cpp
-    Source/PresetManager.cpp)
+    Source/PresetManager.cpp
+    Source/SampleData.cpp)
 
 target_include_directories(EPianoVST PRIVATE Source)
 
@@ -78,8 +79,8 @@ target_link_libraries(EPianoVST
 # Console tests for the preset system:  --target EPianoTests
 # ---------------------------------------------------------------------------
 juce_add_console_app(EPianoTests PRODUCT_NAME "EPianoTests")
-target_sources(EPianoTests PRIVATE tests/PresetTests.cpp tests/EngineTools.cpp Source/PresetManager.cpp)
+target_sources(EPianoTests PRIVATE tests/PresetTests.cpp tests/EngineTools.cpp Source/PresetManager.cpp Source/SampleData.cpp)
 target_include_directories(EPianoTests PRIVATE Source)
 target_compile_definitions(EPianoTests PRIVATE JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0)
-target_link_libraries(EPianoTests PRIVATE EPianoUI juce::juce_audio_processors juce::juce_gui_basics
+target_link_libraries(EPianoTests PRIVATE EPianoUI juce::juce_audio_processors juce::juce_audio_formats juce::juce_gui_basics
     PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)

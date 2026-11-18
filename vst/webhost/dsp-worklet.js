@@ -23,6 +23,25 @@ function synthWorkletModule() {
   const LFO_SINE = 0, LFO_TRI = 1, LFO_SQUARE = 2, LFO_SAW_UP = 3, LFO_SAW_DOWN = 4, LFO_SH = 5;
   const DRIVE_SOFT = 0, DRIVE_HARD = 1, DRIVE_FOLD = 2, DRIVE_CRUSH = 3;
   const MODE_POLY = 0, MODE_LEGATO = 2;
+  const SMP_OFF = 0, SMP_LOOP = 2, SMP_CYCLE = 3;
+
+  // A user sample (mono Float32Array). Mirrors epiano::SampleBuffer.
+  function makeSampleBuffer(data, rate, root) {
+    return { data, length: data.length, rate, root, incScale: rate / (440 * Math.pow(2, (root - 69) / 12)) };
+  }
+  const sampleValid = (b) => !!b && b.length > 1;
+  // 4-point Hermite interpolation; wrap = loop/cycle, otherwise clamp at the ends
+  function hermiteAt(b, pos, wrap) {
+    const len = b.length, d = b.data;
+    const i = Math.trunc(pos), f = pos - i;
+    const at = (j) => {
+      if (wrap) { j %= len; if (j < 0) j += len; } else j = j < 0 ? 0 : (j >= len ? len - 1 : j);
+      return d[j];
+    };
+    const xm1 = at(i - 1), x0 = at(i), x1 = at(i + 1), x2 = at(i + 2);
+    const c = (x1 - xm1) * 0.5, v = x0 - x1, w = c + v, a = w + v + (x2 - x0) * 0.5, bn = w + a;
+    return ((a * f - bn) * f + c) * f + x0;
+  }
   const LFO_DIV_BEATS = [4, 3, 2, 4 / 3, 1.5, 1, 2 / 3, 0.75, 0.5, 1 / 3, 0.375, 0.25, 1 / 6, 0.125, 1 / 12];
 
   const clampv = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
@@ -44,8 +63,23 @@ function synthWorkletModule() {
   }
 
   class Oscillator {
-    constructor() { this.phase = 0; }
+    constructor() { this.phase = 0; this.pos = 0; }
     reset(p) { this.phase = p; }
+    // Sample mode. dt is the oscillator's normalised frequency (freq / sr).
+    nextSample(b, mode, dt) {
+      if (mode === SMP_CYCLE) {
+        const y = hermiteAt(b, this.phase * b.length, true);
+        let p = this.phase + dt; if (p >= 1) p -= 1;
+        this.phase = p;
+        return y;
+      }
+      const loop = mode === SMP_LOOP;
+      if (!loop && this.pos >= b.length) return 0;
+      const y = hermiteAt(b, this.pos, loop);
+      this.pos += dt * b.incScale;
+      if (loop) while (this.pos >= b.length) this.pos -= b.length;
+      return y;
+    }
     next(wave, dt) {
       const t = this.phase;
       let y;
@@ -182,6 +216,7 @@ function synthWorkletModule() {
       const n = k + 1, o = P.osc[k];
       o.on = v[`osc${n}On`] >= 0.5; o.wave = ch(`osc${n}Wave`, 3);
       o.semis = v[`osc${n}Pitch`] + v[`osc${n}Fine`] / 100; o.level = v[`osc${n}Level`];
+      o.sampleMode = ch(`osc${n}Smp`, 3);
     }
     P.attack = v.ampAttack; P.decay = v.ampDecay; P.sustain = v.ampSustain; P.release = v.ampRelease;
     P.cutoff = v.fltCutoff; P.reso = v.fltReso; P.envAmt = v.fltEnvAmt; P.fltDecay = v.fltDecay;
@@ -207,7 +242,7 @@ function synthWorkletModule() {
   }
   function newEngineParams() {
     return {
-      osc: [0, 1, 2].map(() => ({ on: false, wave: 0, semis: 0, level: 0 })),
+      osc: [0, 1, 2].map(() => ({ on: false, wave: 0, semis: 0, level: 0, sampleMode: 0 })),
       lfo: [0, 1].map(() => ({ on: false, wave: 0, rate: 2, sync: false, div: 8, perVoice: false, retrig: false, phase: 0, amount: 1 })),
       mod: Array.from({ length: NUM_MOD_SLOTS }, () => ({ on: true, src: 0, via: 0, dst: 0, amount: 0 })),
       drive: { on: false, type: 0, drive: 0.3, tone: 1, mix: 1, outGain: 1 },
@@ -219,6 +254,7 @@ function synthWorkletModule() {
   class SynthEngine {
     constructor(sampleRate) {
       this.voices = Array.from({ length: NUM_VOICES }, () => new Voice());
+      this.samples = [null, null, null];
       this.mixL = new Float64Array(CHUNK); this.mixR = new Float64Array(CHUNK);
       this.keys = new Int32Array(128); this.keyCount = 0;
       this.params = newEngineParams();
@@ -351,6 +387,7 @@ function synthWorkletModule() {
       this.sustainPedal = on;
       if (!on) for (const v of this.voices) if (v.sustained) v.release();
     }
+    setSample(osc, b) { if (osc >= 0 && osc < NUM_OSC) this.samples[osc] = b; }
     setPitchBend(v) { this.bend = v; }
     setModWheel(v) { this.wheelTarget = clampv(v, 0, 1); }
     allNotesOff() {
@@ -367,7 +404,8 @@ function synthWorkletModule() {
       if (!v.active()) {
         for (let k = 0; k < NUM_OSC; k++) {
           const w = P.osc[k].wave;
-          v.osc[k].reset(w === 1 || w === 2 ? rng.uni() : 0);
+          const smp = P.osc[k].sampleMode !== SMP_OFF && sampleValid(this.samples[k]);
+          v.osc[k].reset(!smp && (w === 1 || w === 2) ? rng.uni() : 0);
         }
         v.filter.reset();
         v.drive.reset();
@@ -376,6 +414,7 @@ function synthWorkletModule() {
       } else {
         for (let i = 0; i < NUM_LFO; i++) if (P.lfo[i].retrig) v.lfo[i].retrigger(0, rng);
       }
+      for (const o of v.osc) o.pos = 0; // samples restart on every (re)trigger
       v.note = note; v.velocity = vel;
       v.velGain = 0.1 + 0.9 * Math.pow(vel / 127, 1.5);
       v.age = ++this.ageCounter;
@@ -490,6 +529,10 @@ function synthWorkletModule() {
       const on0 = P.osc[0].on, on1 = P.osc[1].on, on2 = P.osc[2].on;
       const w0 = P.osc[0].wave, w1 = P.osc[1].wave, w2 = P.osc[2].wave;
       const [o0, o1, o2] = v.osc;
+      const sb0 = this.samples[0], sb1 = this.samples[1], sb2 = this.samples[2];
+      const m0 = sampleValid(sb0) ? P.osc[0].sampleMode : SMP_OFF;
+      const m1 = sampleValid(sb1) ? P.osc[1].sampleMode : SMP_OFF;
+      const m2 = sampleValid(sb2) ? P.osc[2].sampleMode : SMP_OFF;
       const env = v.env, envc = this.envc, filt = v.filter, drv = P.drive.on;
       const mixL = this.mixL, mixR = this.mixR;
 
@@ -499,9 +542,9 @@ function synthWorkletModule() {
         g += dg; k += dk; amp += damp; pl += dpl; pr += dpr;
 
         let s = 0;
-        if (on0) s += l0 * o0.next(w0, dt0);
-        if (on1) s += l1 * o1.next(w1, dt1);
-        if (on2) s += l2 * o2.next(w2, dt2);
+        if (on0) s += l0 * (m0 ? o0.nextSample(sb0, m0, dt0) : o0.next(w0, dt0));
+        if (on1) s += l1 * (m1 ? o1.nextSample(sb1, m1, dt1) : o1.next(w1, dt1));
+        if (on2) s += l2 * (m2 ? o2.nextSample(sb2, m2, dt2) : o2.next(w2, dt2));
         let y = filt.process(s, g, k) * env.next(envc) * amp;
         if (drv) y = this.applyDrive(v.drive, y);
         y *= VOICE_GAIN;
@@ -596,6 +639,7 @@ function synthWorkletModule() {
         case 'bend': e.setPitchBend(m.value); break;
         case 'modWheel': e.setModWheel(m.value); break;
         case 'tempo': this.bpm = m.bpm; break;
+        case 'sample': e.setSample(m.osc, m.data && m.data.length > 1 ? makeSampleBuffer(m.data, m.rate, m.root) : null); break;
         case 'allNotesOff': e.allNotesOff(); break;
         case 'panic': e.panic(); break;
       }

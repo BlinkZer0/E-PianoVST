@@ -119,6 +119,23 @@ juce::WebBrowserComponent::Options EPianoEditor::makeBrowserOptions()
             sendPreset();
         })
         .withEventListener ("loadPresetFile", [this] (const juce::var&) { chooseAndLoadPresetFile(); })
+        // right-click on a control: the host's own parameter menu (FL Studio: Create automation clip,
+        // Link to controller...). Hosts without one get a small fallback menu.
+        .withEventListener ("paramMenu", [this] (const juce::var& e) { showParamMenu (e); })
+        // ---- oscillator samples
+        .withEventListener ("loadSample", [this] (const juce::var& e) { chooseSample ((int) e["osc"]); })
+        .withEventListener ("dropSample", [this] (const juce::var& e)
+        {
+            const int osc = (int) e["osc"];
+            juce::MemoryOutputStream bytes;
+            juce::String msg;
+            if (! juce::Base64::convertFromBase64 (bytes, e["data"].toString()))
+                msg = "Couldn't read the dropped file";
+            else if (processor.loadSampleMemory (osc, bytes.getData(), bytes.getDataSize(), e["name"].toString(), msg) && msg.isEmpty())
+                msg = "Loaded " + e["name"].toString() + " into OSC " + juce::String (osc + 1);
+            sendMessage (msg);
+        })
+        .withEventListener ("clearSample", [this] (const juce::var& e) { processor.setSample ((int) e["osc"], nullptr); })
         .withEventListener ("openPresetFolder", [] (const juce::var&)
         {
             const auto folder = PresetManager::userFolder();
@@ -142,6 +159,70 @@ void EPianoEditor::chooseAndLoadPresetFile()
         else safeThis->sendMessage (error);
         safeThis->sendPreset();
     });
+}
+
+void EPianoEditor::chooseSample (int osc)
+{
+    if (osc < 0 || osc >= kNumOsc) return;
+    fileChooser = std::make_unique<juce::FileChooser> ("Load a sample into OSC " + juce::String (osc + 1),
+                                                        juce::File::getSpecialLocation (juce::File::userMusicDirectory),
+                                                        "*.wav;*.aif;*.aiff;*.flac;*.ogg");
+    const auto chooserFlags = juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles;
+    fileChooser->launchAsync (chooserFlags, [safeThis = juce::Component::SafePointer<EPianoEditor> (this), osc] (const juce::FileChooser& fc)
+    {
+        if (safeThis == nullptr) return;
+        const auto file = fc.getResult();
+        if (file == juce::File()) return;
+        juce::String msg;
+        if (safeThis->processor.loadSampleFile (osc, file, msg) && msg.isEmpty())
+            msg = "Loaded " + file.getFileName() + " into OSC " + juce::String (osc + 1);
+        safeThis->sendMessage (msg);
+    });
+}
+
+void EPianoEditor::sendSamples()
+{
+    lastSampleVersion = processor.sampleVersion.load();
+    juce::Array<juce::var> slots;
+    for (int k = 0; k < kNumOsc; ++k)
+    {
+        if (auto s = processor.getSample (k))
+            slots.add (makeObject ({ { "name", s->name }, { "root", s->root }, { "seconds", s->seconds() },
+                                     { "peaks", samplePeaks (*s, 100) } }));
+        else
+            slots.add (juce::var());
+    }
+    browser.emitEventIfBrowserIsVisible ("samples", makeObject ({ { "slots", slots } }));
+}
+
+void EPianoEditor::showParamMenu (const juce::var& e)
+{
+    const int i = indexForId (e["id"].toString());
+    if (i < 0) return;
+    auto* p = processor.param (i);
+    const juce::Point<int> pos ((int) e["x"], (int) e["y"]);
+
+    if (auto* host = getHostContext())
+        if (auto menu = host->getContextMenuForParameter (p))
+        {
+            menu->showNativeMenu (pos);
+            return;
+        }
+
+    // No host menu (e.g. Standalone): minimal fallback
+    juce::PopupMenu m;
+    m.addSectionHeader (p->getName (64) + ": " + p->getCurrentValueAsText());
+    m.addItem (1, "Reset to default");
+    m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this)
+                                                .withTargetScreenArea (localAreaToGlobal (juce::Rectangle<int> (pos.x, pos.y, 1, 1))),
+                     [safeThis = juce::Component::SafePointer<EPianoEditor> (this), i] (int result)
+                     {
+                         if (safeThis == nullptr || result != 1) return;
+                         auto* param = safeThis->processor.param (i);
+                         param->beginChangeGesture();
+                         param->setValueNotifyingHost (param->getDefaultValue());
+                         param->endChangeGesture();
+                     });
 }
 
 void EPianoEditor::sendMessage (const juce::String& text)
@@ -221,6 +302,7 @@ void EPianoEditor::onUiReady()
     sendConfig();
     sendPresetList();
     sendPreset();
+    sendSamples();
     timerCallback();
 }
 
@@ -281,6 +363,11 @@ void EPianoEditor::timerCallback()
     // Preset changed outside the UI (host program change, project reload)
     if (processor.presetVersion.load() != lastPresetVersion)
         sendPreset();
+
+    // Samples loaded / cleared (UI, preset, project reload); free buffers the audio thread retired
+    processor.collectRetiredSamples();
+    if (processor.sampleVersion.load() != lastSampleVersion)
+        sendSamples();
 
     // Autoload: pick up preset files added/removed/edited in the preset folder (every ~2 s)
     if (++ticks % 60 == 0 && processor.presetManager.rescanIfChanged())

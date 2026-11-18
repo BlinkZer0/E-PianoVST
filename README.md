@@ -19,7 +19,33 @@ E-Piano is a 3-oscillator, 88-voice polyphonic synthesizer. It comes in two buil
   - an on/off switch
 - **Amp envelope**: Attack, Decay, Sustain, Release, plus **Amp**, the preset's own level (−30 to +6 dB).
 - **Filter**: 12 dB/oct low-pass (state-variable) with Cutoff and Resonance. Its filter envelope (Env Amt, Env Dec) responds to velocity, and the cutoff partly follows the key you play.
-- **Output**: Master volume with a soft clipper, a voice counter, and a level meter with a clip light.
+- **Output**: Master volume with a soft clipper, a voice counter, and a level meter with a clip light. Output is stereo.
+
+**Modulation** (MODULATION page)
+- **Two LFOs**:
+  - Waves: Sine, Triangle, Square, Saw Up, Saw Down, S&H.
+  - Rate in Hz, or synced to tempo from 1/1 to 1/32, including dotted and triplet.
+  - Amount and Phase controls.
+  - **Global** (all voices move together, e.g. wobble bass) or **per Voice** (each note has its own LFO, e.g. pads).
+  - **Free**-running or **Note**-triggered.
+- **Mod matrix** with 8 routes: Source × Via → Destination with Amount.
+  - Sources: LFO 1/2, Amp Env, Filter Env, Velocity, Mod Wheel.
+  - Destinations: Cutoff (moves in octaves, so it sounds musical), Resonance, Pitch for all oscillators or each one, Osc levels, Amplitude, Pan.
+  - *Via* lets a second source scale a route, e.g. the mod wheel controls vibrato depth.
+- **Mod wheel** (CC1), plus a draggable on-screen wheel next to the keys.
+
+**Drive · Voice** (DRIVE · VOICE page)
+- **Drive** per voice after the filter: Soft, Hard, Fold or Crush, with Drive, Tone, Mix and Output. Soft and Hard are anti-aliased.
+- **Voice mode**: Poly, Mono or Legato, plus **glide** (time, and either always or only when notes overlap).
+
+**Samples** (SYNTH page, under each oscillator)
+- Any oscillator can play a **WAV sample** instead of its waveform. Click **LOAD WAV** or drag a file onto the oscillator panel (AIFF, FLAC and OGG work too; the web build also takes MP3).
+- Modes:
+  - **One-shot**: plays once per note, restarting on every key press.
+  - **Loop**: repeats the whole file.
+  - **Cycle**: the file is a single waveform cycle, pitched like an oscillator (good for single-cycle wavetable files).
+- Pitch follows the keyboard from the file's root note. A WAV's own root-note setting is used if it has one; otherwise C4. Pitch and Fine retune as usual, and the filter, envelopes, LFOs, matrix and drive all apply.
+- Samples are mixed to mono, normalised, and limited to 10 s. They're saved **inside** projects and `.epreset` files, so presets with samples work on any machine and in both builds.
 
 **Playing**
 - **MIDI**: note on/off with velocity, sustain pedal (CC64), pitch bend (±2 semitones), and all-notes-off / all-sound-off. All MIDI channels are accepted.
@@ -29,7 +55,8 @@ E-Piano is a 3-oscillator, 88-voice polyphonic synthesizer. It comes in two buil
 - **PANIC** silences everything immediately.
 
 **Presets**
-- **80 factory presets** in 8 categories of 10: Keys, Pads, Brass, Organ, Bass, Bells, Strings, Leads. Each one's level was set by rendering it, so switching presets keeps a steady volume.
+- **100 factory presets** in 10 categories of 10: Keys, Pads, Brass, Organ, Bass, Bells, Strings, Leads, **Dubstep** (ten tempo-synced wobble basses: 1/8, triplet, half-time, stutter, growl, laser, riddim, talking and Reese wobbles, most with extra depth on the mod wheel), plus **Motion**, which shows off the new features: wobble, dubstep, Reese and rhythmic basses, a vibrato lead, tremolo and modulated pads, distorted bass, S&H bleeps and auto-pan keys. Each preset's level was set by rendering it, so switching presets keeps a steady volume.
+- v0.9 presets and `.epreset` files sound exactly as before: everything new defaults to off or neutral.
 - A category browser, ‹ › arrows to step through every preset, and a `*` after the name when you've changed something since loading.
 - **Save / Load / Folder** using `.epreset` files (plain JSON). The plugin and the web build use the same format, so presets move freely between them.
 
@@ -40,8 +67,10 @@ vst\build.bat      build VST3 + Standalone (Release)
 vst\install.bat    copy E-Piano.vst3 to C:\Program Files\Common Files\VST3
 ```
 
-- Loads as an instrument with stereo out and MIDI in. All 25 parameters can be automated, and a knob drag records as one automation move. MIDI events are applied at the exact sample they arrive.
-- The 80 factory presets also appear in the DAW's program/preset menu. The project saves every setting plus the selected preset.
+- Loads as an instrument with stereo out and MIDI in. All 96 parameters can be automated, and a knob drag records as one automation move. MIDI events are applied at the exact sample they arrive.
+- **Automating in FL Studio** (or any DAW with VST3 parameter menus): **right-click a knob, switch or dropdown** to get the DAW's own menu (*Create automation clip*, *Link to controller*…). Or move a control and use FL's *Tools → Last tweaked*.
+- Synced LFOs follow the DAW's tempo, and lock to the beat while the transport plays.
+- The 100 factory presets also appear in the DAW's program/preset menu. The project saves every setting plus the selected preset.
 - User presets live in **`Documents\E-Piano\Presets`**, shared by every DAW and every instance. New, renamed and deleted files show up automatically within about 2 seconds, and each subfolder becomes a category. Deleting a preset moves it to the Recycle Bin.
 - The UI is the same HTML/SVG as the web build, shown inside the plugin through WebView2 and scaled to the window size.
 - Requirements: Windows, Visual Studio 2022 or 2026 (C++ workload), Git. JUCE 8.0.17 downloads automatically on the first build.
@@ -50,44 +79,50 @@ Build details, the bridge between the UI and C++, tests and troubleshooting tips
 
 ## Web build (`web/index.html`)
 
-- **One file**: UI, DSP and all 80 presets are inside it. Open it directly in Chrome or Edge, or run `start.bat` to serve it from `http://localhost:8080`.
+- **One file**: UI, DSP and all 100 presets are inside it. Open it directly in Chrome or Edge, or run `start.bat` to serve it from `http://localhost:8080`.
+- It's **generated from the plugin's own UI** by `vst\webhost\build-web.ps1`, so it has every feature of the plugin. Its JS sound engine is checked against the C++ one by the parity test.
+- **BPM** in the header sets the tempo for synced LFOs. The plugin uses the DAW's tempo instead.
 - Audio switches on with your first click or key press. The bottom-right corner shows the audio path:
   - **AudioWorklet** when served by `start.bat` (lowest latency)
   - **ScriptProcessor** when opened straight from disk (same DSP, a bit more latency)
 - **MIDI**: pick your keyboard under *MIDI IN*. The browser asks for MIDI permission the first time.
 - **Presets**:
   - **FOLDER** links a folder on disk (Chrome/Edge). Link `Documents\E-Piano\Presets` to share presets with the plugin. Linked folders autoload the same way the plugin's does. After reopening the page, one click on **RECONNECT** grants access again.
-  - With no linked folder, **SAVE** stores presets in this browser (the *Browser* tab).
+  - With no linked folder, **SAVE** stores presets in this browser (the *User* tab). After reopening the page, click **FOLDER** once to reconnect a linked folder.
   - **LOAD** opens any `.epreset` file.
 
-## Where we are (v0.9)
+## Where we are
 
-**Done**
-- Web prototype → VST3 port finished. The C++ and JavaScript DSP match within about 1% on every factory preset.
-- The VST3 builds cleanly, installs, and runs in a DAW (confirmed by hand).
-- Presets: 80 level-matched factory presets, save/load, a shared preset folder with autoload, and host program support.
+**v0.9**
+- Web prototype → VST3 port, 80 level-matched presets, save/load, a shared preset folder with autoload, and host programs.
+- Builds, installs, and runs in a DAW (confirmed by hand).
+
+**Since v0.9: modulation update** (version number not bumped yet)
+- Dual LFOs, an 8-route mod matrix with Via, mod wheel, per-voice drive, Mono/Legato with glide, stereo pan, 10 Motion presets and 10 Dubstep wobble presets.
+- C++ and JS engines are now line-for-line twins with a shared deterministic RNG. They agree to within 5×10⁻⁵ on 17 test scenarios, down from about 1% before.
+- The worst case (88 voices, both LFOs per voice, 4 routes and drive) uses about 13% of one CPU core.
 - Automated checks:
-  - preset system console tests (`EPianoTests`): factory data, the save → load round trip, and bad or partial files
-  - DSP parity between C++ and JS
-  - Amp level gain checks
+  - preset tests (`EPianoTests`)
+  - C++ vs JS parity (`vst\tests\run-parity.ps1`)
+  - performance benchmark (`--bench`)
   - headless-browser UI tests of the web build
+- Not yet confirmed by hand in a DAW.
 
 **Known limitations**
 - Windows only for now. The plugin code is portable JUCE, but no macOS build has been set up or tested.
 - The web build relies on Chrome or Edge for Web MIDI and folder linking. Other browsers can play but only store presets in the browser.
 - The user-folder preset list in the plugin hasn't been stress-tested with very large libraries; it rescans the whole folder every 2 seconds.
 
-**Ideas for 1.0**
-- Modulation: an LFO for vibrato and tremolo, and a mod wheel mapping
+**Ideas next**
 - Effects: chorus, delay and reverb, which suit the e-piano and pad presets
 - Per-oscillator pulse width or wave shaping, and unison / stereo spread
-- Velocity sensitivity control, and a glide / mono mode for leads and basses
+- More mod sources and destinations (aftertouch, LFO rate, drive amount). The matrix is table-driven, so each one is a small addition.
 - A macOS (AU/VST3) build and an installer
 
 ## Repository layout
 
 ```
-web/index.html            web build (single file)
+web/index.html            web build (single file, generated: vst\webhost\build-web.ps1)
 start.bat, serve.ps1      optional local server for the web build
-vst/                      VST3 plugin (JUCE 8): Source/, ui/, presets/, tests/
+vst/                      VST3 plugin (JUCE 8): Source/, ui/, webhost/, presets/, tests/
 ```

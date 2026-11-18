@@ -8,6 +8,7 @@
 //      the folder is re-scanned automatically)
 // ============================================================================
 #include "Params.h"
+#include "SampleData.h"
 #include <vector>
 
 namespace epiano
@@ -16,6 +17,7 @@ struct PresetData
 {
     juce::String name, category;
     std::array<float, kNumParams> values; // NaN = not in preset -> parameter default
+    std::array<SamplePtr, 3> samples {};  // optional oscillator samples (embedded in the file)
 
     PresetData() { values.fill (NAN); }
 };

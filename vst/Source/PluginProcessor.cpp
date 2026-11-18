@@ -17,6 +17,88 @@ EPianoProcessor::EPianoProcessor()
     setCurrentProgram (0); // a fresh instance starts on the first factory preset
 }
 
+EPianoProcessor::~EPianoProcessor()
+{
+    for (auto& slot : sampleSlots)
+    {
+        delete slot.incoming.exchange (nullptr);
+        delete slot.retired.exchange (nullptr);
+        delete slot.active;
+        slot.active = nullptr;
+    }
+}
+
+//==============================================================================
+SamplePtr EPianoProcessor::getSample (int osc) const
+{
+    const juce::ScopedLock sl (sampleLock);
+    return osc >= 0 && osc < kNumOsc ? uiSamples[(size_t) osc] : nullptr;
+}
+
+void EPianoProcessor::collectRetiredSamples()
+{
+    for (auto& slot : sampleSlots)
+        delete slot.retired.exchange (nullptr);
+}
+
+void EPianoProcessor::setSample (int osc, SamplePtr s)
+{
+    if (osc < 0 || osc >= kNumOsc) return;
+    {
+        const juce::ScopedLock sl (sampleLock);
+        uiSamples[(size_t) osc] = s;
+    }
+    auto* a = new AudioSample();          // the audio thread gets its own copy
+    if (s != nullptr) { a->data = s->data; a->rate = s->rate; a->root = s->root; }
+    collectRetiredSamples();
+    delete sampleSlots[(size_t) osc].incoming.exchange (a); // an older, never-used post is safe to drop
+    ++sampleVersion;
+}
+
+void EPianoProcessor::swapInSamples()
+{
+    for (int k = 0; k < kNumOsc; ++k)
+    {
+        auto& slot = sampleSlots[(size_t) k];
+        if (slot.retired.load() != nullptr) continue;      // wait until the message thread freed the last one
+        if (auto* d = slot.incoming.exchange (nullptr))
+        {
+            slot.retired.store (slot.active);
+            slot.active = d;
+            engine.setSample (k, d->data.size() > 1 ? SampleBuffer::make (d->data.data(), (int) d->data.size(), d->rate, d->root)
+                                                    : SampleBuffer {});
+        }
+    }
+}
+
+static void switchToSampleMode (juce::RangedAudioParameter* p)
+{
+    if (p->convertFrom0to1 (p->getValue()) < 0.5f) // Off -> One-shot
+    {
+        p->beginChangeGesture();
+        p->setValueNotifyingHost (p->convertTo0to1 (1.0f));
+        p->endChangeGesture();
+    }
+}
+
+bool EPianoProcessor::loadSampleFile (int osc, const juce::File& file, juce::String& message)
+{
+    auto s = decodeSampleFile (file, message);
+    if (s == nullptr) return false;
+    setSample (osc, s);
+    switchToSampleMode (params[(size_t) (osc1Smp + osc)]);
+    return true;
+}
+
+bool EPianoProcessor::loadSampleMemory (int osc, const void* data, size_t size, const juce::String& name, juce::String& message)
+{
+    auto s = decodeSampleMemory (data, size, name, message);
+    if (s == nullptr) return false;
+    setSample (osc, s);
+    switchToSampleMode (params[(size_t) (osc1Smp + osc)]);
+    return true;
+}
+
 //==============================================================================
 void EPianoProcessor::prepareToPlay (double sampleRate, int)
 {
@@ -56,6 +138,7 @@ void EPianoProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
         engine.panic();
     if (const float w = uiModWheel.exchange (-1.0f); w >= 0.0f)   // mod wheel dragged in the UI
         engine.setModWheel (w);
+    swapInSamples();
 
     // Merges notes played on the UI keyboard into `midi`, and tracks all
     // sounding notes so the editor can light up the keys.
@@ -121,6 +204,11 @@ void EPianoProcessor::applyPreset (const PresetData& preset)
         p->setValueNotifyingHost (p->convertTo0to1 (v));
         p->endChangeGesture();
     }
+    // Samples embedded in the preset replace the current ones; presets without
+    // samples (all factory presets) leave whatever is loaded alone.
+    for (int k = 0; k < kNumOsc; ++k)
+        if (preset.samples[(size_t) k] != nullptr)
+            setSample (k, preset.samples[(size_t) k]);
 }
 
 void EPianoProcessor::setPresetInfo (const juce::String& id, const juce::String& name, const juce::String& category)
@@ -205,6 +293,8 @@ bool EPianoProcessor::saveUserPreset (const juce::String& rawName, bool overwrit
     data.category = "User";
     for (int i = 0; i < kNumParams; ++i)
         if (i != master) data.values[(size_t) i] = paramValue (i);
+    for (int k = 0; k < kNumOsc; ++k)
+        data.samples[(size_t) k] = getSample (k);
 
     if (! PresetManager::writeFile (file, data, error)) return false;
     presetManager.rescanIfChanged();
@@ -234,6 +324,20 @@ void EPianoProcessor::getStateInformation (juce::MemoryBlock& destData)
     state.setProperty ("presetId", info.id, nullptr);
     state.setProperty ("presetName", info.name, nullptr);
     state.setProperty ("presetCategory", info.category, nullptr);
+
+    // oscillator samples travel with the project
+    state.removeChild (state.getChildWithName ("Samples"), nullptr);
+    juce::ValueTree samples ("Samples");
+    for (int k = 0; k < kNumOsc; ++k)
+        if (auto s = getSample (k))
+        {
+            juce::ValueTree t ("Sample");
+            t.setProperty ("osc", k, nullptr);
+            t.setProperty ("json", juce::JSON::toString (sampleToVar (*s), true), nullptr);
+            samples.appendChild (t, nullptr);
+        }
+    state.appendChild (samples, nullptr);
+
     if (auto xml = state.createXml())
         copyXmlToBinary (*xml, destData);
 }
@@ -246,6 +350,18 @@ void EPianoProcessor::setStateInformation (const void* data, int sizeInBytes)
         {
             auto state = juce::ValueTree::fromXml (*xml);
             currentProgram = juce::jlimit (0, getNumPrograms() - 1, (int) state.getProperty ("program", 0));
+
+            std::array<SamplePtr, kNumOsc> loaded {};
+            const auto samples = state.getChildWithName ("Samples");
+            for (const auto& t : samples)
+            {
+                const int k = (int) t.getProperty ("osc", -1);
+                if (k >= 0 && k < kNumOsc)
+                    loaded[(size_t) k] = sampleFromVar (juce::JSON::parse (t.getProperty ("json").toString()));
+            }
+            for (int k = 0; k < kNumOsc; ++k)
+                if (loaded[(size_t) k] != getSample (k)) setSample (k, loaded[(size_t) k]);
+            state.removeChild (samples, nullptr);
             auto name = state.getProperty ("presetName").toString();
             if (name.isEmpty()) // project saved by an older build: fall back to its program
             {

@@ -62,6 +62,11 @@ try {
     const W = 8, per = sc.blocks * 128 / W, sl = new Float64Array(W), sr = new Float64Array(W);
     let peak = 0;
     const send = (m) => p.port.onmessage({ data: m });
+    for (const s of sc.samples || []) {
+      const d = new Float32Array(s.length);
+      for (let i = 0; i < s.length; i++) d[i] = Math.sin(2 * Math.PI * s.freq * i / s.rate) * Math.exp(-3 * i / s.length);
+      send({ type: 'sample', osc: s.osc, data: d, rate: s.rate, root: s.root });
+    }
     for (let b = 0; b < sc.blocks; b++) {
       for (const ev of sc.events || []) {
         if (ev[0] !== b) continue;

@@ -505,7 +505,7 @@ body.plugin .knob { width: 64px; }
 .page:not(.active) { visibility: hidden; pointer-events: none; }
 
 /* ======================================================= modulation page === */
-.modpage-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.5fr); gap: 12px; flex: 1; }
+.modpage-row { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 0.9fr) minmax(0, 1.8fr); gap: 12px; flex: 1; }
 .fxpage-row  { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 12px; flex: 1; }
 .panel.off .switch-row { opacity: 0.55; }
 .lfo-panel .screen, .drive-panel .screen, .voice-panel .screen { height: 70px; }
@@ -541,7 +541,7 @@ body.plugin .knob { width: 64px; }
   min-width: 0; width: 100%;
   background: var(--screen); color: var(--text);
   border: 1px solid var(--panel-edge); border-radius: 5px;
-  padding: 4px 6px;
+  padding: 4px 2px 4px 4px;
   font: 600 11px var(--sans);
   cursor: pointer;
 }
@@ -554,7 +554,7 @@ body.plugin .knob { width: 64px; }
 .mx-add:disabled { opacity: 0.4; cursor: default; }
 .mx-head, .mx-row {
   display: grid;
-  grid-template-columns: 26px minmax(0, 1fr) minmax(0, 0.9fr) minmax(0, 1.15fr) 104px 20px;
+  grid-template-columns: 26px minmax(0, 1fr) minmax(0, 0.95fr) minmax(0, 1.15fr) 100px 20px;
   align-items: center;
   gap: 6px;
 }
@@ -604,3 +604,20 @@ body.plugin .knob { width: 64px; }
 .bpm-ctl input::-webkit-inner-spin-button { opacity: 0.4; }
 .web-only { display: none !important; }
 body.web .web-only { display: flex !important; }
+
+/* ============================================================== samples === */
+.smp-row {
+  display: grid;
+  grid-template-columns: 96px auto minmax(0, 1fr) 20px;
+  align-items: center;
+  gap: 6px;
+  border-top: 1px solid #1f2227;
+  padding-top: 8px;
+}
+.smp-load { padding: 4px 8px; font-size: 10px; }
+.smp-name { font-family: var(--mono); font-size: 10px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.smp-name.loaded { color: var(--text); }
+.smp-clear { visibility: hidden; }
+.screen.sample .scr-line { stroke-width: 1.1; }
+.panel.drop { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent-dim), 0 0 18px var(--accent-glow); }
+.panel.off .smp-row { opacity: 0.38; }
