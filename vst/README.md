@@ -35,7 +35,7 @@ Modulation runs at a 32-sample control rate. Each target ramps linearly per samp
 - Loads as an instrument (Instrument|Synth) with stereo out and MIDI in.
 - **96 automatable parameters.** Knob drags record as single automation gestures.
 - **Right-click any control** for the host's parameter menu: FL Studio's *Create automation clip* / *Link to controller*, Cubase's automation menu, and so on. The editor asks for it with `getHostContext()->getContextMenuForParameter()`. Hosts without one (e.g. the Standalone app) get a small fallback menu with *Reset to default*. Shift+right-click still opens DevTools.
-- **Programs:** the 100 factory presets appear in the DAW's preset/program menu.
+- **Programs:** the 120 factory presets appear in the DAW's preset/program menu.
 - **MIDI:** note on/off with velocity, sustain (CC64), **mod wheel (CC1)**, pitch bend (±2 st), all notes off/all sound off. Events are applied at the exact sample they arrive.
 - **Host tempo** drives synced LFOs. While the transport plays, a *Global + Free + Sync* LFO locks to the song position, so a wobble lands on the beat every time.
 - **State:** the project saves every setting plus the selected preset.
@@ -83,9 +83,11 @@ Modulation runs at a 32-sample control rate. Each target ramps linearly per samp
 
 ## Presets
 
-- **Factory:** 100 presets in 10 categories, built in from [presets/factory_presets.json](presets/factory_presets.json):
+- **Factory:** 120 presets in 12 categories, built in from [presets/factory_presets.json](presets/factory_presets.json):
   - Keys, Pads, Brass, Organ, Bass, Bells, Strings, Leads (10 each, unchanged since v0.9)
   - **Dubstep**: Wub Machine, Triplet Wobble, Half-Time Womp, Growl Yoi, Stutter Wobble, Mod Wheel Wobble, Laser Wob, Riddim Bass, Talking Bass, Neuro Reese Wobble. All are tempo-synced, mono-legato with glide, and most put extra wobble or resonance on the mod wheel
+  - **Dubstep 2**: Brostep Screech, Sub Drop Wobble, Vowel Wub, Ripper Bass, Tearout Growl, Slow Womp 70, Wobble Chords (poly), Gated Wob, Metallic Wob, Deep Space Wob
+  - **Jazz**: Smoky Rhodes, Jazz Organ B3, Vibes Tremolo, Walking Upright, Brushed Pad, Muted Trumpet, Flute Solo, Jazz Guitar, Wurly Comp, Late Night Keys. Velocity opens the filter; tremolo and Leslie-style motion come from the LFOs; the trumpet and flute put vibrato on the mod wheel
   - **Motion**: Classic Wobble Bass, Deep Dubstep Bass, Reese Bass, Rhythmic Bass, Vibrato Lead, Tremolo Pad, Modulated Synth Pad, Distorted Bass, S&H Bleeps, Auto-Pan Crunch Keys
 
   Their Amp levels were set by rendering each one (`EPianoTests --loudness`). Many Motion presets put extra depth on the mod wheel.
@@ -109,8 +111,8 @@ cmake --build %LOCALAPPDATA%\EPianoVST\build --config Release --target EPianoTes
 
 | Command | Checks |
 |---|---|
-| `EPianoTests.exe` | 100 factory presets, ranges, v0.9 presets carry no new settings, neutral defaults, save → load round trip, old / partial / bad files, samples embedded in presets, WAV decoding with root note |
-| `powershell -File tests\run-parity.ps1` | **C++ vs JS DSP parity**: renders the 21 scenarios in [tests/parity_scenarios.json](tests/parity_scenarios.json) (v0.9 presets, a Dubstep preset with the mod wheel, sample One-shot / Loop / Cycle, every LFO mode, matrix sources and Via, all drive types, mono/legato/glide, sustain, an 88-voice flood) in both engines and compares RMS per window. Currently agree to within 5×10⁻⁵ |
+| `EPianoTests.exe` | 120 factory presets, ranges, v0.9 presets carry no new settings, neutral defaults, save → load round trip, old / partial / bad files, samples embedded in presets, WAV decoding with root note |
+| `powershell -File tests\run-parity.ps1` | **C++ vs JS DSP parity**: renders the 23 scenarios in [tests/parity_scenarios.json](tests/parity_scenarios.json) (v0.9 presets, Dubstep, Dubstep 2 and Jazz presets, sample One-shot / Loop / Cycle, every LFO mode, matrix sources and Via, all drive types, mono/legato/glide, sustain, an 88-voice flood) in both engines and compares RMS per window. Currently agree to within 5×10⁻⁵ |
 | `EPianoTests.exe --bench` | worst case, 88 voices with both LFOs per voice + 4 routes + drive: about 13% of one core (v0.9 patch: about 5%) |
 | `EPianoTests.exe --loudness` | loudness of every factory preset (level matching) |
 

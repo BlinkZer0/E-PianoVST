@@ -26,10 +26,10 @@ int main (int argc, char* argv[])
     PresetManager pm;
     const auto& f = pm.factory();
     std::printf ("factory presets: %d\n", (int) f.size());
-    CHECK (f.size() == 100);
+    CHECK (f.size() == 120);
     CHECK ((int) paramDefs().size() == kNumParams && kNumParams == 96);
 
-    // 10 categories x 10. The v0.9 parameters are always present and in range;
+    // 12 categories x 10. The v0.9 parameters are always present and in range;
     // newer ones are either absent (NaN -> neutral default) or in range.
     juce::StringArray cats;
     for (const auto& p : f)
@@ -45,7 +45,9 @@ int main (int argc, char* argv[])
         }
     }
     std::printf ("categories: %s\n", cats.joinIntoString (", ").toRawUTF8());
-    CHECK (cats.size() == 10);
+    CHECK (cats.size() == 12);
+    CHECK (f[100].category == "Dubstep 2" && f[100].name == "Brostep Screech");
+    CHECK (f[110].category == "Jazz" && f[110].name == "Smoky Rhodes" && f[110].values[lfo1On] == 1.0f);
     CHECK (f[90].category == "Dubstep" && f[90].name == "Wub Machine" && f[90].values[lfo1Sync] == 1.0f);
     CHECK (f[0].name == "Tine E-Piano");
     CHECK (f[50].name == "Glass Bells" && f[50].values[osc3Pitch] == 31.0f); // needs the +/-36 range
