@@ -819,11 +819,26 @@
   midiSelect.addEventListener('change', () => engine.selectMidi(midiSelect.value));
 
   // --------------------------------------------------------- fit window ----
+  // Desktop / plugin: the fixed-size panel is scaled to fit the window.
+  // Touch screens where that would make it too small (phones) switch to
+  // "compact": the panel fills the width and scrolls, with the keybed pinned
+  // to the bottom. Portrait also restacks the panels into one column.
   const synth = $('.synth');
+  const coarse = window.matchMedia ? window.matchMedia('(pointer: coarse)') : null;
   function fit() {
+    const body = document.body, vw = window.innerWidth, vh = window.innerHeight;
+    body.classList.remove('compact', 'portrait');
+    synth.style.zoom = '';
     const w = synth.offsetWidth + 24, h = synth.offsetHeight + 24;
-    const s = Math.min(window.innerWidth / w, window.innerHeight / h);
-    synth.style.transform = `translateX(-50%) scale(${s})`;
+    const s = Math.min(vw / w, vh / h);
+    const compact = !!(coarse && coarse.matches) && (vh > vw || s < 0.8 * (vw / w));
+    const svg = $('.piano-svg');
+    if (svg) svg.setAttribute('preserveAspectRatio', compact && vh <= vw ? 'none' : 'xMidYMid meet');
+    if (!compact) { synth.style.transform = `translateX(-50%) scale(${s})`; return; }
+    body.classList.add('compact');
+    body.classList.toggle('portrait', vh > vw);
+    synth.style.transform = '';
+    synth.style.zoom = String(Math.min(1.4, vw / (synth.offsetWidth + 12)));
   }
   window.addEventListener('resize', fit);
 
