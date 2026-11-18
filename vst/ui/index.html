@@ -42,8 +42,15 @@
         <button id="preset-folder" type="button" class="pd-btn" title="Open the preset folder">FOLDER</button>
       </div>
       <div class="top-controls">
+        <label class="midi-pick web-only">
+          <span class="ctl-label">MIDI IN</span>
+          <select id="midi-select"><option>Detecting…</option></select>
+        </label>
         <span class="indicator"><span class="led" id="midi-led" title="Note activity"></span>MIDI</span>
         <span class="indicator"><span class="led" id="sustain-led"></span>SUS</span>
+        <label class="indicator bpm-ctl" title="Tempo for synced LFOs (from the host in the plugin)">
+          BPM <input id="bpm-input" type="number" min="20" max="300" step="0.1" value="120" readonly>
+        </label>
         <button id="panic-btn" type="button" class="panic">PANIC</button>
       </div>
     </header>
@@ -52,10 +59,28 @@
       <div class="cat-tabs" id="cat-tabs" role="tablist"></div>
       <div class="preset-grid" id="preset-grid"></div>
     </section>
-    <section class="osc-row" id="osc-row"></section>
-    <section class="mod-row" id="mod-row"></section>
+
+    <nav class="page-tabs" role="tablist" aria-label="Sections">
+      <button type="button" class="page-tab" data-page="synth" role="tab">SYNTH</button>
+      <button type="button" class="page-tab" data-page="mod" role="tab"><span class="led" id="mod-led"></span>MODULATION</button>
+      <button type="button" class="page-tab" data-page="fx" role="tab"><span class="led" id="fx-led"></span>DRIVE · VOICE</button>
+      <span class="page-hint" id="page-hint"></span>
+    </nav>
+    <div class="pages">
+      <div class="page" data-page="synth">
+        <section class="osc-row" id="osc-row"></section>
+        <section class="mod-row" id="mod-row"></section>
+      </div>
+      <div class="page" data-page="mod">
+        <section class="modpage-row" id="modpage-row"></section>
+      </div>
+      <div class="page" data-page="fx">
+        <section class="fxpage-row" id="fxpage-row"></section>
+      </div>
+    </div>
 
     <section class="keybed">
+      <div id="wheel-slot"></div>
       <div class="octave-ctl">
         <span class="ctl-label">OCTAVE</span>
         <div class="oct-buttons">
@@ -89,6 +114,7 @@
   <script src="js/params.js"></script>
   <script src="js/engine-juce.js"></script>
   <script src="js/knob.js"></script>
+  <script src="js/controls.js"></script>
   <script src="js/piano.js"></script>
   <script src="js/app.js"></script>
 </body>

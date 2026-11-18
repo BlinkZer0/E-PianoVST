@@ -4,6 +4,7 @@
 #include "Params.h"
 #include "PresetManager.h"
 #include "SynthEngine.h"
+#include "EngineParamsFromValues.h"
 
 class EPianoProcessor : public juce::AudioProcessor
 {
@@ -55,10 +56,13 @@ public:
     juce::RangedAudioParameter* param (int index) const { return params[(size_t) index]; }
     float paramValue (int index) const { return rawValues[(size_t) index]->load(); }
     void requestPanic() { panicRequested = true; }
+    void setUiModWheel (float v) { uiModWheel = juce::jlimit (0.0f, 1.0f, v); }
 
     std::atomic<int>   statVoices { 0 };
     std::atomic<float> statPeak { 0.0f };
     std::atomic<bool>  statSustain { false };
+    std::atomic<float> statModWheel { 0.0f };
+    std::atomic<float> statBpm { 120.0f };
 
 private:
     void applyPreset (const epiano::PresetData&);
@@ -71,6 +75,7 @@ private:
     epiano::SynthEngine engine;
     std::atomic<int> currentProgram { 0 };
     std::atomic<bool> panicRequested { false };
+    std::atomic<float> uiModWheel { -1.0f };   // -1 = no pending change
 
     mutable juce::CriticalSection presetLock;
     PresetInfo presetInfo;

@@ -78,7 +78,7 @@ target_link_libraries(EPianoVST
 # Console tests for the preset system:  --target EPianoTests
 # ---------------------------------------------------------------------------
 juce_add_console_app(EPianoTests PRODUCT_NAME "EPianoTests")
-target_sources(EPianoTests PRIVATE tests/PresetTests.cpp Source/PresetManager.cpp)
+target_sources(EPianoTests PRIVATE tests/PresetTests.cpp tests/EngineTools.cpp Source/PresetManager.cpp)
 target_include_directories(EPianoTests PRIVATE Source)
 target_compile_definitions(EPianoTests PRIVATE JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0)
 target_link_libraries(EPianoTests PRIVATE EPianoUI juce::juce_audio_processors juce::juce_gui_basics

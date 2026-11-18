@@ -12,7 +12,7 @@ class JuceEngine {
     this.ready = true;
     this.handlers = {};
     if (this.backend) {
-      for (const ev of ['params', 'notes', 'stats', 'config', 'presetList', 'preset', 'saveResult', 'message']) {
+      for (const ev of ['params', 'notes', 'stats', 'config', 'presetList', 'preset', 'saveResult', 'message', 'midiInputs']) {
         this.backend.addEventListener(ev, (data) => { if (this.handlers[ev]) this.handlers[ev](data); });
       }
     }
@@ -33,6 +33,11 @@ class JuceEngine {
   noteOn(note, vel) { this.emit('noteOn', { note, vel }); }
   noteOff(note) { this.emit('noteOff', { note }); }
   panic() { this.emit('panic'); }
+  modWheel(value) { this.emit('modWheel', { value }); }
+
+  // web build only (the plugin takes tempo + MIDI from the host)
+  setTempo(bpm) { this.emit('setTempo', { bpm }); }
+  selectMidi(id) { this.emit('selectMidi', { id }); }
 
   // presets
   loadPreset(id) { this.emit('loadPreset', { id }); }

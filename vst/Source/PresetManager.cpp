@@ -19,8 +19,10 @@ PresetManager::PresetManager()
 
 //==============================================================================
 // Factory file format (compact):
-//   preset = [name, osc1, osc2, osc3, [a,d,s,r], [cutoff,reso,envAmt,envDecay], ampLevelDb]
+//   preset = [name, osc1, osc2, osc3, [a,d,s,r], [cutoff,reso,envAmt,envDecay], ampLevelDb, {extra}?]
 //   osc    = [on, wave, pitch, fine, level]
+//   extra  = optional { "paramId": value } for LFO / matrix / drive / voice params
+// Anything not given loads at its default (= neutral), so v0.9 presets are unchanged.
 void PresetManager::loadFactory()
 {
     const auto json = juce::JSON::parse (juce::String::fromUTF8 (BinaryData::factory_presets_json,
@@ -50,12 +52,19 @@ void PresetManager::loadFactory()
                     d.values[(size_t) flt[j]] = clampParam (flt[j], (float) p[5][j]);
                 }
                 d.values[ampLevel] = clampParam (ampLevel, (float) p[6]);
+
+                // optional 8th element: { "paramId": value } for everything added after v0.9
+                if (p.size() > 7 && p[7].isObject())
+                    for (int i = 0; i < kNumParams; ++i)
+                        if (p[7].hasProperty (paramDefs()[(size_t) i].id))
+                            d.values[(size_t) i] = clampParam (i, (float) p[7][juce::Identifier (paramDefs()[(size_t) i].id)]);
+
                 factoryPresets.push_back (std::move (d));
             }
         }
     }
 
-    jassert (factoryPresets.size() == 80);
+    jassert (factoryPresets.size() >= 80);
     if (factoryPresets.empty()) // never leave the host with zero programs
     {
         PresetData init;

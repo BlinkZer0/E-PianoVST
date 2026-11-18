@@ -9,7 +9,7 @@ EPianoProcessor::EPianoProcessor()
 {
     for (int i = 0; i < kNumParams; ++i)
     {
-        const auto* id = paramDefs()[(size_t) i].id;
+        const auto& id = paramDefs()[(size_t) i].id;
         params[(size_t) i] = apvts.getParameter (id);
         rawValues[(size_t) i] = apvts.getRawParameterValue (id);
         jassert (params[(size_t) i] != nullptr && rawValues[(size_t) i] != nullptr);
@@ -32,27 +32,7 @@ bool EPianoProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 
 EngineParams EPianoProcessor::readParams() const
 {
-    EngineParams p;
-    for (int k = 0; k < kNumOsc; ++k)
-    {
-        const int b = osc1On + k * 5;
-        auto& o = p.osc[(size_t) k];
-        o.on    = paramValue (b) >= 0.5f;
-        o.wave  = juce::jlimit (0, 3, (int) paramValue (b + 1));
-        o.semis = paramValue (b + 2) + paramValue (b + 3) / 100.0;
-        o.level = paramValue (b + 4);
-    }
-    p.attack   = paramValue (ampAttack);
-    p.decay    = paramValue (ampDecay);
-    p.sustain  = paramValue (ampSustain);
-    p.release  = paramValue (ampRelease);
-    p.cutoff   = paramValue (fltCutoff);
-    p.reso     = paramValue (fltReso);
-    p.envAmt   = paramValue (fltEnvAmt);
-    p.fltDecay = paramValue (fltDecay);
-    p.ampGain  = juce::Decibels::decibelsToGain (paramValue (ampLevel), -100.0f);
-    p.master   = paramValue (master);
-    return p;
+    return makeEngineParams ([this] (int i) { return paramValue (i); });
 }
 
 void EPianoProcessor::handleMidi (const juce::MidiMessage& m)
@@ -62,6 +42,7 @@ void EPianoProcessor::handleMidi (const juce::MidiMessage& m)
     else if (m.isSustainPedalOn())                      engine.setSustain (true);
     else if (m.isSustainPedalOff())                     engine.setSustain (false);
     else if (m.isPitchWheel())                          engine.setPitchBend ((m.getPitchWheelValue() - 8192) / 8192.0);
+    else if (m.isControllerOfType (1))                  engine.setModWheel (m.getControllerValue() / 127.0);
     else if (m.isAllSoundOff())                         engine.panic();
     else if (m.isAllNotesOff() || m.isResetAllControllers()) engine.allNotesOff();
 }
@@ -73,12 +54,28 @@ void EPianoProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
 
     if (panicRequested.exchange (false))
         engine.panic();
+    if (const float w = uiModWheel.exchange (-1.0f); w >= 0.0f)   // mod wheel dragged in the UI
+        engine.setModWheel (w);
 
     // Merges notes played on the UI keyboard into `midi`, and tracks all
     // sounding notes so the editor can light up the keys.
     keyboardState.processNextMidiBuffer (midi, 0, n, true);
 
     engine.setParams (readParams());
+
+    // Host tempo + song position (tempo-synced LFOs). No play head -> 120 BPM.
+    double bpm = 120.0, ppq = 0.0;
+    bool playing = false;
+    if (auto* ph = getPlayHead())
+    {
+        if (const auto pos = ph->getPosition())
+        {
+            if (const auto b = pos->getBpm()) bpm = *b;
+            if (const auto q = pos->getPpqPosition()) ppq = *q;
+            playing = pos->getIsPlaying();
+        }
+    }
+    engine.setTransport (bpm, ppq, playing);
 
     float* L = buffer.getWritePointer (0);
     float* R = buffer.getNumChannels() > 1 ? buffer.getWritePointer (1) : nullptr;
@@ -103,6 +100,8 @@ void EPianoProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
 
     statVoices.store (engine.activeVoices());
     statSustain.store (engine.sustainDown());
+    statModWheel.store ((float) engine.modWheel());
+    statBpm.store ((float) engine.tempo());
     const float pk = engine.takePeak();
     if (pk > statPeak.load()) statPeak.store (pk);
 }

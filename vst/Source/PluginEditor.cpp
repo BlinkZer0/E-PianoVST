@@ -93,6 +93,7 @@ juce::WebBrowserComponent::Options EPianoEditor::makeBrowserOptions()
             processor.keyboardState.allNotesOff (0);
             processor.requestPanic();
         })
+        .withEventListener ("modWheel", [this] (const juce::var& e) { processor.setUiModWheel ((float) e["value"]); })
         .withEventListener ("loadPreset", [this] (const juce::var& e)
         {
             juce::String error;
@@ -303,5 +304,7 @@ void EPianoEditor::timerCallback()
         { "voices",  processor.statVoices.load() },
         { "peak",    processor.statPeak.exchange (0.0f) },
         { "sustain", processor.statSustain.load() },
+        { "modWheel", processor.statModWheel.load() },
+        { "bpm",     processor.statBpm.load() },
     }));
 }
