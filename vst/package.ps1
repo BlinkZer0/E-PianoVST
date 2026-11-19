@@ -62,6 +62,8 @@ PRESETS
   the web build and the Android app.
 
 More: https://github.com/BlinkZer0/E-PianoVST
+Terms of use: https://blinkzer0.github.io/E-PianoVST/terms.html
+Privacy policy: https://blinkzer0.github.io/E-PianoVST/privacy.html
 "@ | Set-Content -Path (Join-Path $stage 'README.txt') -Encoding utf8
 
 $zip = Join-Path $dist "$name.zip"

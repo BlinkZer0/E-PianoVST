@@ -60,6 +60,7 @@ No ads, no accounts, no tracking. E-Piano needs no internet connection and colle
 **Contact email:** your developer email (required)
 **Website:** https://github.com/BlinkZer0/E-PianoVST
 **Privacy policy URL:** https://blinkzer0.github.io/E-PianoVST/privacy.html (goes live when `docs/privacy.html` is pushed)
+**Terms of use** (not a Console field; link it from the full description or website if you like): https://blinkzer0.github.io/E-PianoVST/terms.html
 
 ## App content (Policy → App content)
 

@@ -130,7 +130,7 @@ Build details, the bridge between the UI and C++, tests and troubleshooting tips
 
 ```
 web/index.html            web build (single file, generated: vst\webhost\build-web.ps1)
-docs/                     GitHub Pages: live copy of the web build + privacy policy
+docs/                     GitHub Pages: live copy of the web build, privacy policy and terms of use
 android/                  Android app (Google Play); store listing in android/play-store/
 start.bat, serve.ps1      optional local server for the web build
 vst/                      VST3 plugin (JUCE 8): Source/, ui/, webhost/, presets/, tests/
